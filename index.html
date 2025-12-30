@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 戰術整合改良版</title>
+  <title>軍備時間查詢工具 - 時段交換改良版</title>
   <!-- 引入 Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -63,13 +63,13 @@
     
     .current-cell { background-color: var(--highlight-bg) !important; color: var(--highlight-text); font-weight: 700; }
     
-    .tactical-cell { min-width: 250px; } /* 增加寬度以支撐警告文字 */
+    .tactical-cell { min-width: 250px; }
     .tactical-result { 
       display: flex; 
       align-items: center; 
       justify-content: center; 
       gap: 8px; 
-      white-space: nowrap; /* 強制不換行 */
+      white-space: nowrap; 
       line-height: 1.6; 
     }
     .star-mark { color: var(--star-color); font-weight: bold; font-size: 1.1rem; }
@@ -99,7 +99,6 @@
       <div class="section-header">
         <div class="title-group">
           <h2 class="section-title">軍備項目倒數</h2>
-          <!-- 更新：將關鍵字著色為黃色與綠色 -->
           <span class="section-hint">可在下方自行選擇想交換的<span style="color: var(--star-color); font-weight: 700;">目標時段</span>，再選擇想<span style="color: var(--accent-color); font-weight: 700;">提前到哪個時段</span>，即可查看變更後的剩餘時間</span>
         </div>
       </div>
@@ -157,19 +156,20 @@
       let current = null, nextGlobal = null;
       const eventMap = {};
 
-      // 修正：當前項目判定（解決凌晨 00:00-02:00 顯示準備中的問題）
+      // 修正：當前項目判定（補全日期標記，解決總表高亮錯誤）
       const todaySchedule = SCHEDULE[currentDay];
       for (let item of todaySchedule) {
         if (nowMins >= timeToMinutes(item.time)) {
-          current = { ...item };
+          current = { ...item, day: currentDay }; // 標記為今天
         }
       }
 
       if (!current) {
-        // 如果今天還沒開始任何時段，則抓昨天最後一個時段
+        // 如果今天還沒開始任何時段（如凌晨），則抓昨天最後一個時段
         const yesterdayIdx = (now.getDay() + 6) % 7;
-        const yesterdaySchedule = SCHEDULE[weekdays[yesterdayIdx]];
-        current = { ...yesterdaySchedule[yesterdaySchedule.length - 1] };
+        const yesterdayName = weekdays[yesterdayIdx];
+        const yesterdaySchedule = SCHEDULE[yesterdayName];
+        current = { ...yesterdaySchedule[yesterdaySchedule.length - 1], day: yesterdayName }; // 標記為昨天
       }
 
       // 找出下一個全域任務
@@ -204,12 +204,9 @@
         let isInvalidExchange = false;
 
         if (hasStar && advanceToSlot !== 'none') {
-          // 判定1：是否屬於同週期內的「提前」時段
           if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
             const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
             const calculatedWait = results[0] - timeDiff;
-            
-            // 判定2：該提前時段是否在未來
             if (calculatedWait > 0) {
               advancedWait = calculatedWait;
             } else {
@@ -269,7 +266,6 @@
           if (row.advancedWait !== null) {
             tacticalContent += `<span class="advance-time">${formatWait(row.advancedWait)}</span>`;
           } else if (row.isInvalidExchange && advanceToSlot !== 'none') {
-            // 更新：強制不換行提示
             tacticalContent += `<span class="invalid-rule">不符合交換提前規則</span>`;
           }
         }
@@ -284,17 +280,19 @@
       });
       document.getElementById("summary2").innerHTML = html2 + "</tbody></table>";
 
-      renderFullSchedule(currentDay, current);
+      // 修正：傳入整個 current 物件而非單純的 currentDay
+      renderFullSchedule(current);
     }
 
-    function renderFullSchedule(today, current) {
+    function renderFullSchedule(current) {
       const wDays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
       let html = `<table><thead><tr><th>時段</th>${wDays.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
       SLOTS.forEach(t => {
         html += `<tr><td><strong>${t}</strong></td>`;
         wDays.forEach(d => {
           const ev = SCHEDULE[d]?.find(e=>e.time===t);
-          const isCurrent = (d === today && t === current?.time);
+          // 修正判定：使用 current 物件中攜帶的 day 與 time 進行精確比對
+          const isCurrent = (d === current?.day && t === current?.time);
           html += `<td class="${isCurrent?'current-cell':''}">${ev?.event||''}</td>`;
         });
         html += "</tr>";
