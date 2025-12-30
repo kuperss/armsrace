@@ -49,7 +49,7 @@
     .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
     
-    /* 管理員統計面板樣式更新 */
+    /* 管理員面板：雙欄優化 */
     #adminStats { 
       position: fixed; 
       bottom: 20px; 
@@ -105,7 +105,7 @@
     </div>
   </div>
 
-  <!-- 管理員統計面板 -->
+  <!-- 管理員面板 -->
   <div id="adminStats">
     <div class="admin-row">
       <span class="admin-label">📅 今日新增：</span>
@@ -122,6 +122,7 @@
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+    // 基礎配置
     let firebaseConfig = {
       apiKey: "AIzaSyAtn7-VkqIPBnKbwMrOo5nUaDW8IGnoacg",
       authDomain: "firestore-database-4444c.firebaseapp.com",
@@ -131,7 +132,10 @@
       appId: "1:1042379916484:web:c175885526d067d1eb7591"
     };
 
-    // 管理員 UI 判定
+    // 嘗試環境變數注入
+    try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch(e) {}
+
+    // 管理員 UI 判定與顯示
     const urlParams = new URLSearchParams(window.location.search);
     const isAdmin = urlParams.get('admin') === 'true';
     if (isAdmin) {
@@ -142,14 +146,16 @@
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
-      const appId = 'arms-race-prod'; 
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'arms-race-prod'; 
 
-      // 取得台灣時間日期字串 (YYYY-MM-DD)
-      const getTaiwanDate = () => {
-        return new Intl.DateTimeFormat('zh-TW', {
-          timeZone: 'Asia/Taipei',
-          year: 'numeric', month: '2-digit', day: '2-digit'
-        }).format(new Date()).replace(/\//g, '-');
+      // 取得標準日期字串 (YYYY-MM-DD)
+      const getTaiwanDateStr = () => {
+        const d = new Date();
+        const offset = d.getTimezoneOffset() * 60000;
+        const localTime = d.getTime();
+        const taipeiTime = localTime + offset + (3600000 * 8);
+        const taipeiDate = new Date(taipeiTime);
+        return taipeiDate.toISOString().split('T')[0];
       };
 
       const initAuth = async () => {
@@ -161,18 +167,23 @@
           }
         } catch(e) { 
           console.error("Firebase Auth Error", e); 
-          if (isAdmin) document.getElementById('visitCount').innerText = "驗證失敗";
+          if (isAdmin) {
+            document.getElementById('visitCount').innerText = "驗證失敗";
+            document.getElementById('todayVisitCount').innerText = "驗證失敗";
+          }
         }
       };
       initAuth();
 
       onAuthStateChanged(auth, async (user) => {
         if (!user) return;
-        const todayStr = getTaiwanDate();
+        
+        const todayStr = getTaiwanDateStr();
+        // 嚴格遵循路徑規則：artifacts/{appId}/public/data/{collectionName}
         const statsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'global_stats');
         const dailyDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'daily_' + todayStr);
         
-        // 訪客計數：改良寫入邏輯
+        // 訪客計數：改良寫入
         if (!sessionStorage.getItem('visited')) {
           const updateObj = { visits: increment(1) };
           Promise.all([
@@ -182,9 +193,8 @@
             .catch((err) => console.error("Write error", err));
         }
 
-        // 管理員數據監聽
+        // 管理員監聽：修正「校驗中」卡住的問題
         if (isAdmin) {
-          // 全球總數監聽
           onSnapshot(statsDoc, (snapshot) => {
             if (snapshot.exists()) {
               document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
@@ -193,9 +203,9 @@
             }
           }, (err) => {
             document.getElementById('visitCount').innerText = "權限被擋";
+            console.error(err);
           });
 
-          // 今日小計監聽
           onSnapshot(dailyDoc, (snapshot) => {
             if (snapshot.exists()) {
               document.getElementById('todayVisitCount').innerText = snapshot.data().visits || 0;
@@ -233,6 +243,9 @@
       return getOffset(timeToMinutes(targetTime)) < getOffset(timeToMinutes(naturalTime));
     }
 
+    /**
+     * 核心計算引擎：已回歸「只偵測下一次發生時段」
+     */
     function calculateFullData() {
       const now = new Date();
       const weekdays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
@@ -243,6 +256,7 @@
       const eventMap = {};
       const todaySchedule = SCHEDULE[currentDay];
 
+      // 1. 判定當前時段與全域下一個時段
       for (let item of todaySchedule) { if (nowMins >= timeToMinutes(item.time)) current = { ...item, day: currentDay }; }
       if (!current) {
         const yesterdayIdx = (now.getDay() + 6) % 7;
@@ -254,8 +268,11 @@
         nextGlobal = { ...nextD, wait: (1440 - nowMins) + timeToMinutes(nextD.time) };
       }
 
+      // 2. 專項任務處理：只取第一個符合條件的「下一次」
       ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(ev => {
         let results = [], naturalTime = "";
+        
+        // 搜尋未來 14 天內最近的兩次發生
         for (let i = 0; i < 14 && results.length < 2; i++) {
           const dIdx = (now.getDay() + i) % 7;
           for (let item of SCHEDULE[weekdays[dIdx]]) {
@@ -266,8 +283,11 @@
             }
           }
         }
+
+        // 規則：標記 ★ 僅針對「下一次」發生
         const hasStar = (naturalTime === starTriggerSlot);
         let advancedWait = null, isInvalidExchange = false;
+
         if (hasStar && advanceToSlot !== 'none') {
           if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
             const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
