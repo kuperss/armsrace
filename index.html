@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 時段交換改良版</title>
+  <title>軍備時間查詢工具 - 管理員加強版</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -49,7 +49,7 @@
     .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
     
-    /* 管理員統計面板升級：雙欄佈局 */
+    /* 管理員統計面板樣式更新 */
     #adminStats { 
       position: fixed; 
       bottom: 20px; 
@@ -109,11 +109,11 @@
   <div id="adminStats">
     <div class="admin-row">
       <span class="admin-label">📅 今日新增：</span>
-      <span class="admin-value" id="todayVisitCount">載入中</span>
+      <span class="admin-value" id="todayVisitCount">校驗中...</span>
     </div>
     <div class="admin-row">
       <span class="admin-label">🌍 累計訪客：</span>
-      <span class="admin-value" id="visitCount">載入中</span>
+      <span class="admin-value" id="visitCount">校驗中...</span>
     </div>
   </div>
 
@@ -131,6 +131,7 @@
       appId: "1:1042379916484:web:c175885526d067d1eb7591"
     };
 
+    // 管理員 UI 判定
     const urlParams = new URLSearchParams(window.location.search);
     const isAdmin = urlParams.get('admin') === 'true';
     if (isAdmin) {
@@ -158,7 +159,10 @@
           } else {
             await signInAnonymously(auth);
           }
-        } catch(e) { console.error("Firebase Auth Error", e); }
+        } catch(e) { 
+          console.error("Firebase Auth Error", e); 
+          if (isAdmin) document.getElementById('visitCount').innerText = "驗證失敗";
+        }
       };
       initAuth();
 
@@ -168,26 +172,38 @@
         const statsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'global_stats');
         const dailyDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'daily_' + todayStr);
         
-        // 訪客計數：同時更新全球與每日
+        // 訪客計數：改良寫入邏輯
         if (!sessionStorage.getItem('visited')) {
           const updateObj = { visits: increment(1) };
           Promise.all([
             setDoc(statsDoc, updateObj, { merge: true }),
             setDoc(dailyDoc, updateObj, { merge: true })
           ]).then(() => sessionStorage.setItem('visited', 'true'))
-            .catch(() => {});
+            .catch((err) => console.error("Write error", err));
         }
 
-        // 管理員數據填充
+        // 管理員數據監聽
         if (isAdmin) {
-          // 監聽全球總數
+          // 全球總數監聽
           onSnapshot(statsDoc, (snapshot) => {
-            if (snapshot.exists()) document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
+            if (snapshot.exists()) {
+              document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
+            } else {
+              document.getElementById('visitCount').innerText = "0";
+            }
+          }, (err) => {
+            document.getElementById('visitCount').innerText = "權限被擋";
           });
-          // 監聽今日小計
+
+          // 今日小計監聽
           onSnapshot(dailyDoc, (snapshot) => {
-            if (snapshot.exists()) document.getElementById('todayVisitCount').innerText = snapshot.data().visits || 0;
-            else document.getElementById('todayVisitCount').innerText = "1";
+            if (snapshot.exists()) {
+              document.getElementById('todayVisitCount').innerText = snapshot.data().visits || 0;
+            } else {
+              document.getElementById('todayVisitCount').innerText = "0";
+            }
+          }, (err) => {
+            document.getElementById('todayVisitCount').innerText = "權限被擋";
           });
         }
       });
