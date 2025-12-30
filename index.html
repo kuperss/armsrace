@@ -4,35 +4,18 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 時段交換改良版</title>
-  <!-- 引入 Google Fonts -->
+  <title>軍備時間查詢工具 - 交換時段改良版</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --primary-color: #3b82f6;
-      --bg-color: #111827;
-      --card-bg: #1f2937;
-      --text-main: #f9fafb;
-      --text-muted: #9ca3af;
-      --border-color: #374151;
-      --highlight-bg: #78350f;
-      --highlight-text: #fef3c7;
-      --accent-color: #10b981;
-      --star-color: #fbbf24;
-      --error-text: #fca5a5;
+      --primary-color: #3b82f6; --bg-color: #111827; --card-bg: #1f2937; --text-main: #f9fafb;
+      --text-muted: #9ca3af; --border-color: #374151; --highlight-bg: #78350f;
+      --highlight-text: #fef3c7; --accent-color: #10b981; --star-color: #fbbf24; --error-text: #fca5a5;
     }
-
     body.light {
-      --bg-color: #f3f4f6;
-      --card-bg: #ffffff;
-      --text-main: #1f2937;
-      --text-muted: #6b7280;
-      --border-color: #e5e7eb;
-      --highlight-bg: #fef3c7;
-      --highlight-text: #92400e;
-      --error-text: #ef4444;
+      --bg-color: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-muted: #6b7280;
+      --border-color: #e5e7eb; --highlight-bg: #fef3c7; --highlight-text: #92400e; --error-text: #ef4444;
     }
-
     * { box-sizing: border-box; transition: background-color 0.3s, color 0.3s; }
     body { font-family: 'Noto Sans TC', sans-serif; margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); line-height: 1.6; }
     .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
@@ -41,43 +24,31 @@
     h1 span { font-size: 0.85rem; font-weight: normal; color: var(--text-muted); }
     .btn-toggle { background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 500; }
     .card { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color); padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
-    .title-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .section-title { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; border-left: 4px solid var(--primary-color); padding-left: 10px; margin: 0; }
-    .section-hint { font-size: 0.8rem; color: var(--text-muted); font-weight: normal; }
-    
-    .star-select { background: var(--bg-color); color: var(--star-color); border: 1px solid var(--border-color); padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; outline: none; font-weight: 700; }
-    .advance-select { background: var(--bg-color); color: var(--accent-color); border: 1px solid var(--border-color); padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; outline: none; font-weight: 700; }
-
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .section-title { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--primary-color); padding-left: 10px; margin: 0; }
+    .section-hint { font-size: 0.8rem; color: var(--text-muted); }
+    .star-select, .advance-select { background: var(--bg-color); border: 1px solid var(--border-color); padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: 700; outline: none; }
+    .star-select { color: var(--star-color); }
+    .advance-select { color: var(--accent-color); }
     .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .status-item { padding: 12px; border-radius: 8px; background: var(--bg-color); }
     .status-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
     .status-value { font-size: 1.05rem; font-weight: 500; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; margin-left: 8px; background: var(--primary-color); color: white; }
-    
     .summary-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
     .scroll-container { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
     table { width: 100%; border-collapse: collapse; background: var(--card-bg); }
     th, td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--border-color); }
     th { background-color: var(--bg-color); font-weight: 500; color: var(--text-muted); font-size: 0.85rem; }
-    
     .current-cell { background-color: var(--highlight-bg) !important; color: var(--highlight-text); font-weight: 700; }
-    
     .tactical-cell { min-width: 250px; }
-    .tactical-result { 
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
-      gap: 8px; 
-      white-space: nowrap; 
-      line-height: 1.6; 
-    }
+    .tactical-result { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; line-height: 1.6; }
     .star-mark { color: var(--star-color); font-weight: bold; font-size: 1.1rem; }
     .advance-time { color: var(--accent-color); font-weight: 700; font-family: monospace; font-size: 1.05rem; }
     .invalid-rule { color: var(--error-text); font-size: 0.75rem; font-weight: 500; }
-    
     .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
+    #adminStats { position: fixed; bottom: 20px; right: 20px; background: var(--primary-color); color: white; padding: 10px 15px; border-radius: 50px; font-size: 0.8rem; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; z-index: 1000; opacity: 0.8; }
     @media (max-width: 600px) { th, td { padding: 8px 6px; font-size: 0.8rem; } }
   </style>
 </head>
@@ -99,7 +70,7 @@
       <div class="section-header">
         <div class="title-group">
           <h2 class="section-title">軍備項目倒數</h2>
-          <span class="section-hint">可在下方自行選擇想交換的<span style="color: var(--star-color); font-weight: 700;">目標時段</span>，再選擇想<span style="color: var(--accent-color); font-weight: 700;">提前到哪個時段</span>，即可查看變更後的剩餘時間</span>
+          <span class="section-hint">可在下方自行選擇想交換的<span style="color: var(--star-color); font-weight: 700;">目標時段</span>，再選擇想<span style="color: var(--accent-color); font-weight: 700;">提前到哪個時段</span></span>
         </div>
       </div>
       <div class="summary-container">
@@ -114,10 +85,67 @@
     </div>
   </div>
 
+  <div id="adminStats">📊 累計訪客：<span id="visitCount">載入中...</span></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    /* ------------------------------------------------------------
+       重要：請在此處填入您在 Firebase 控制台取得的配置資訊
+       ------------------------------------------------------------ */
+    const firebaseConfig = {
+  apiKey: "AIzaSyAtn7-VkqIPBnKbwMrOo5nUaDW8IGnoacg",
+  authDomain: "firestore-database-4444c.firebaseapp.com",
+  projectId: "firestore-database-4444c",
+  storageBucket: "firestore-database-4444c.firebasestorage.app",
+  messagingSenderId: "1042379916484",
+  appId: "1:1042379916484:web:c175885526d067d1eb7591"
+};
+
+    // 容錯檢查：若在測試環境則嘗試讀取系統變數
+    try { if (typeof __firebase_config !== 'undefined') firebaseConfig = JSON.parse(__firebase_config); } catch(e) {}
+
+    if (firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("請替換")) {
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      const appId = 'arms-race-prod'; // 可自定義識別 ID
+
+      const initAuth = async () => {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      };
+      initAuth();
+
+      onAuthStateChanged(auth, (user) => {
+        if (!user) return;
+        const statsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'global_stats');
+        
+        // 訪客計數
+        if (!sessionStorage.getItem('visited')) {
+          setDoc(statsDoc, { visits: increment(1) }, { merge: true }).catch(() => {});
+          sessionStorage.setItem('visited', 'true');
+        }
+
+        // 管理員偵測 (?admin=true)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('admin') === 'true') {
+          document.getElementById('adminStats').style.display = 'block';
+          onSnapshot(statsDoc, (snapshot) => {
+            if (snapshot.exists()) document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
+          });
+        }
+      });
+    }
+  </script>
+
   <script>
-    /**************************************************************
-     * 資料定義
-     **************************************************************/
+    /* 此處保留核心計算邏輯，與您之前的版本完全一致 */
     const SCHEDULE = {
       "星期一": [{time:"02:00",event:"士兵提升"},{time:"06:00",event:"科技研發"},{time:"10:00",event:"城市建設"},{time:"14:00",event:"士兵提升"},{time:"18:00",event:"英雄提升"},{time:"22:00",event:"科技研發"}],
       "星期二": [{time:"02:00",event:"無人機強化"},{time:"06:00",event:"英雄提升"},{time:"10:00",event:"士兵提升"},{time:"14:00",event:"科技研發"},{time:"18:00",event:"城市建設"},{time:"22:00",event:"無人機強化"}],
@@ -127,66 +155,36 @@
       "星期六": [{time:"02:00",event:"城市建設"},{time:"06:00",event:"士兵提升"},{time:"10:00",event:"士兵提升"},{time:"14:00",event:"科技研發"},{time:"18:00",event:"城市建設"},{time:"22:00",event:"無人機強化"}],
       "星期日": [{time:"02:00",event:"英雄提升"},{time:"06:00",event:"城市建設"},{time:"10:00",event:"無人機強化"},{time:"14:00",event:"英雄提升"},{time:"18:00",event:"科技研發"},{time:"22:00",event:"城市建設"}]
     };
-
     const SLOTS = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"];
-    const BASELINE_MINS = 600; // 10:00 AM
-
+    const BASELINE_MINS = 600;
     let starTriggerSlot = localStorage.getItem('tactical_star_trigger') || "02:00";
     let advanceToSlot = localStorage.getItem('tactical_advance_to') || "22:00";
-
-    function timeToMinutes(time) {
-      if (!time || time === 'none') return -1;
-      const [h, m] = time.split(":").map(Number);
-      return h * 60 + m;
-    }
-
+    function timeToMinutes(time) { if (!time || time === 'none') return -1; const [h, m] = time.split(":").map(Number); return h * 60 + m; }
     function isSameCycleEarlier(targetTime, naturalTime) {
-      const targetMins = timeToMinutes(targetTime);
-      const naturalMins = timeToMinutes(naturalTime);
       const getOffset = (m) => (m - BASELINE_MINS + 1440) % 1440;
-      return getOffset(targetMins) < getOffset(naturalMins);
+      return getOffset(timeToMinutes(targetTime)) < getOffset(timeToMinutes(naturalTime));
     }
-
     function calculateFullData() {
       const now = new Date();
       const weekdays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
       const currentDay = weekdays[now.getDay()];
       const nowMins = now.getHours() * 60 + now.getMinutes();
-      
       let current = null, nextGlobal = null;
       const eventMap = {};
-
-      // 修正：當前項目判定（補全日期標記，解決總表高亮錯誤）
       const todaySchedule = SCHEDULE[currentDay];
-      for (let item of todaySchedule) {
-        if (nowMins >= timeToMinutes(item.time)) {
-          current = { ...item, day: currentDay }; // 標記為今天
-        }
-      }
-
+      for (let item of todaySchedule) { if (nowMins >= timeToMinutes(item.time)) current = { ...item, day: currentDay }; }
       if (!current) {
-        // 如果今天還沒開始任何時段（如凌晨），則抓昨天最後一個時段
         const yesterdayIdx = (now.getDay() + 6) % 7;
         const yesterdayName = weekdays[yesterdayIdx];
-        const yesterdaySchedule = SCHEDULE[yesterdayName];
-        current = { ...yesterdaySchedule[yesterdaySchedule.length - 1], day: yesterdayName }; // 標記為昨天
+        current = { ...SCHEDULE[yesterdayName][SCHEDULE[yesterdayName].length - 1], day: yesterdayName };
       }
-
-      // 找出下一個全域任務
-      for (let item of todaySchedule) {
-        if (nowMins < timeToMinutes(item.time)) {
-          if (!nextGlobal) nextGlobal = { ...item, wait: timeToMinutes(item.time) - nowMins };
-        }
-      }
+      for (let item of todaySchedule) { if (nowMins < timeToMinutes(item.time)) { if (!nextGlobal) nextGlobal = { ...item, wait: timeToMinutes(item.time) - nowMins }; } }
       if (!nextGlobal) {
         const nextD = SCHEDULE[weekdays[(now.getDay()+1)%7]][0];
         nextGlobal = { ...nextD, wait: (1440 - nowMins) + timeToMinutes(nextD.time) };
       }
-
-      const events = ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"];
-      events.forEach(ev => {
-        let results = [];
-        let naturalTime = "";
+      ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(ev => {
+        let results = [], naturalTime = "";
         for (let i = 0; i < 14 && results.length < 2; i++) {
           const dIdx = (now.getDay() + i) % 7;
           for (let item of SCHEDULE[weekdays[dIdx]]) {
@@ -194,117 +192,63 @@
             if (total > nowMins && item.event === ev) {
               if (results.length === 0) naturalTime = item.time;
               results.push(total - nowMins);
-              if (results.length >= 2) break;
             }
           }
         }
-
         const hasStar = (naturalTime === starTriggerSlot);
-        let advancedWait = null;
-        let isInvalidExchange = false;
-
+        let advancedWait = null, isInvalidExchange = false;
         if (hasStar && advanceToSlot !== 'none') {
           if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
             const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
-            const calculatedWait = results[0] - timeDiff;
-            if (calculatedWait > 0) {
-              advancedWait = calculatedWait;
-            } else {
-              isInvalidExchange = true;
-            }
-          } else {
-            isInvalidExchange = true;
-          }
+            const calc = results[0] - timeDiff;
+            if (calc > 0) advancedWait = calc; else isInvalidExchange = true;
+          } else isInvalidExchange = true;
         }
-
-        eventMap[ev] = { naturalTime, wait1: results[0] || null, wait2: results[1] || null, hasStar, advancedWait: advancedWait, isInvalidExchange };
+        eventMap[ev] = { naturalTime, wait1: results[0], wait2: results[1], hasStar, advancedWait, isInvalidExchange };
       });
-
       return { currentDay, currentTimeStr: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`, current, nextGlobal, eventMap };
     }
-
-    function formatWait(mins) {
-      if (mins === null) return "--:--";
-      const h = Math.floor(mins / 60).toString().padStart(2, '0');
-      const m = (mins % 60).toString().padStart(2, '0');
-      return `${h}:${m}`;
-    }
-
+    function formatWait(mins) { if (mins === null || isNaN(mins)) return "--:--"; return `${Math.floor(mins / 60).toString().padStart(2, '0')}:${(mins % 60).toString().padStart(2, '0')}`; }
     function renderUI() {
       const { currentDay, currentTimeStr, current, nextGlobal, eventMap } = calculateFullData();
-
       document.getElementById("statusContent").innerHTML = `
         <div class="status-item"><div class="status-label">目前時間 GMT+8</div><div class="status-value">${currentTimeStr} <span class="badge">${currentDay}</span></div></div>
         <div class="status-item"><div class="status-label">當前軍備項目</div><div class="status-value" style="color:var(--accent-color)">${current?.event || '準備中'}</div></div>
         <div class="status-item"><div class="status-label">下個階段預告</div><div class="status-value">${nextGlobal?.event} <span style="font-size:0.8rem; color:var(--text-muted)">(於 ${formatWait(nextGlobal?.wait)} 後到來)</span></div></div>
       `;
       document.getElementById("lastUpdate").innerText = `最後同步：${new Date().toLocaleTimeString('zh-TW')}`;
-
       const events = ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"];
-      let html1 = `<table><thead><tr>
-          <th>軍備項目</th>
-          <th>下次倒數</th>
-          <th class="tactical-cell">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 5px;">
-              <select class="star-select" onchange="updateStarTrigger(this.value)">
-                ${SLOTS.map(s => `<option value="${s}" ${starTriggerSlot===s?'selected':''}>★ ${s}</option>`).join('')}
-              </select>
-              <span style="color:var(--text-muted)">→</span>
-              <select class="advance-select" onchange="updateAdvanceTo(this.value)">
-                <option value="none" ${advanceToSlot==='none'?'selected':''}>不提前</option>
-                ${SLOTS.map(s => `<option value="${s}" ${advanceToSlot===s?'selected':''}>${s}</option>`).join('')}
-              </select>
-            </div>
-          </th>
-        </tr></thead><tbody>`;
-
+      let h1 = `<table><thead><tr><th>軍備項目</th><th>下次倒數</th><th class="tactical-cell"><div style="display:flex;align-items:center;justify-content:center;gap:5px;">
+        <select class="star-select" onchange="updateStarTrigger(this.value)">${SLOTS.map(s=>`<option value="${s}" ${starTriggerSlot===s?'selected':''}>★ ${s}</option>`).join('')}</select>
+        <span style="color:var(--text-muted)">→</span><select class="advance-select" onchange="updateAdvanceTo(this.value)"><option value="none" ${advanceToSlot==='none'?'selected':''}>不提前</option>${SLOTS.map(s=>`<option value="${s}" ${advanceToSlot===s?'selected':''}>${s}</option>`).join('')}</select>
+      </div></th></tr></thead><tbody>`;
       events.forEach(name => {
         const row = eventMap[name];
-        let tacticalContent = "";
+        let tact = "";
         if (row.hasStar) {
-          tacticalContent += '<span class="star-mark">★</span>';
-          if (row.advancedWait !== null) {
-            tacticalContent += `<span class="advance-time">${formatWait(row.advancedWait)}</span>`;
-          } else if (row.isInvalidExchange && advanceToSlot !== 'none') {
-            tacticalContent += `<span class="invalid-rule">不符合交換提前規則</span>`;
-          }
+          tact += '<span class="star-mark">★</span>';
+          if (row.advancedWait !== null) tact += `<span class="advance-time">${formatWait(row.advancedWait)}</span>`;
+          else if (row.isInvalidExchange && advanceToSlot !== 'none') tact += `<span class="invalid-rule">不符合交換提前規則</span>`;
         }
-
-        html1 += `<tr><td>${name}</td><td class="natural-time">${formatWait(row.wait1)}</td><td><div class="tactical-result">${tacticalContent}</div></td></tr>`;
+        h1 += `<tr><td>${name}</td><td class="natural-time">${formatWait(row.wait1)}</td><td><div class="tactical-result">${tact}</div></td></tr>`;
       });
-      document.getElementById("summary1").innerHTML = html1 + "</tbody></table>";
-
-      let html2 = `<table><thead><tr><th>軍備項目</th><th>下下次倒數</th></tr></thead><tbody>`;
-      events.forEach(name => {
-        html2 += `<tr><td>${name}</td><td class="natural-time" style="color:var(--text-muted)">${formatWait(eventMap[name].wait2)}</td></tr>`;
-      });
-      document.getElementById("summary2").innerHTML = html2 + "</tbody></table>";
-
-      // 修正：傳入整個 current 物件而非單純的 currentDay
-      renderFullSchedule(current);
-    }
-
-    function renderFullSchedule(current) {
+      document.getElementById("summary1").innerHTML = h1 + "</tbody></table>";
+      let h2 = `<table><thead><tr><th>軍備項目</th><th>下下次倒數</th></tr></thead><tbody>`;
+      events.forEach(name => { h2 += `<tr><td>${name}</td><td class="natural-time" style="color:var(--text-muted)">${formatWait(eventMap[name].wait2)}</td></tr>`; });
+      document.getElementById("summary2").innerHTML = h2 + "</tbody></table>";
       const wDays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
-      let html = `<table><thead><tr><th>時段</th>${wDays.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
+      let ft = `<table><thead><tr><th>時段</th>${wDays.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
       SLOTS.forEach(t => {
-        html += `<tr><td><strong>${t}</strong></td>`;
-        wDays.forEach(d => {
-          const ev = SCHEDULE[d]?.find(e=>e.time===t);
-          // 修正判定：使用 current 物件中攜帶的 day 與 time 進行精確比對
-          const isCurrent = (d === current?.day && t === current?.time);
-          html += `<td class="${isCurrent?'current-cell':''}">${ev?.event||''}</td>`;
-        });
-        html += "</tr>";
+        ft += `<tr><td><strong>${t}</strong></td>`;
+        wDays.forEach(d => { ft += `<td class="${(d===current?.day && t===current?.time)?'current-cell':''}">${SCHEDULE[d]?.find(e=>e.time===t)?.event||''}</td>`; });
+        ft += "</tr>";
       });
-      document.getElementById("fullTable").innerHTML = html + "</tbody></table>";
+      document.getElementById("fullTable").innerHTML = ft + "</tbody></table>";
     }
-
     function updateStarTrigger(val) { starTriggerSlot = val; localStorage.setItem('tactical_star_trigger', val); renderUI(); }
     function updateAdvanceTo(val) { advanceToSlot = val; localStorage.setItem('tactical_advance_to', val); renderUI(); }
     function toggleTheme() { document.body.classList.toggle('light'); localStorage.setItem('theme', document.body.classList.contains('light')?'light':'dark'); }
     if (localStorage.getItem('theme')==='light') document.body.classList.add('light');
-
     renderUI();
     setInterval(renderUI, 30000);
   </script>
