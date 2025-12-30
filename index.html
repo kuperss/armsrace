@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 戰術整合改良版</title>
+  <title>軍備時間查詢工具 - 時段交換改良版</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -49,7 +49,7 @@
     .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
     
-    /* 修改：讓管理員統計更明顯一點 */
+    /* 管理員統計面板升級：雙欄佈局 */
     #adminStats { 
       position: fixed; 
       bottom: 20px; 
@@ -57,14 +57,18 @@
       background: var(--primary-color); 
       color: white; 
       padding: 12px 20px; 
-      border-radius: 50px; 
-      font-size: 0.85rem; 
-      font-weight: 800; 
+      border-radius: 16px; 
+      font-size: 0.8rem; 
       box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
       display: none; 
       z-index: 9999; 
-      border: 2px solid rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.2);
     }
+    .admin-row { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 4px; }
+    .admin-row:last-child { margin-bottom: 0; }
+    .admin-label { opacity: 0.8; }
+    .admin-value { font-weight: 800; font-family: monospace; }
+
     @media (max-width: 600px) { th, td { padding: 8px 6px; font-size: 0.8rem; } }
   </style>
 </head>
@@ -102,14 +106,22 @@
   </div>
 
   <!-- 管理員統計面板 -->
-  <div id="adminStats">📊 累計訪客：<span id="visitCount">校驗中...</span></div>
+  <div id="adminStats">
+    <div class="admin-row">
+      <span class="admin-label">📅 今日新增：</span>
+      <span class="admin-value" id="todayVisitCount">載入中</span>
+    </div>
+    <div class="admin-row">
+      <span class="admin-label">🌍 累計訪客：</span>
+      <span class="admin-value" id="visitCount">載入中</span>
+    </div>
+  </div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, increment, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // 修改：使用 let 允許覆寫，解決賦值錯誤
     let firebaseConfig = {
       apiKey: "AIzaSyAtn7-VkqIPBnKbwMrOo5nUaDW8IGnoacg",
       authDomain: "firestore-database-4444c.firebaseapp.com",
@@ -119,14 +131,25 @@
       appId: "1:1042379916484:web:c175885526d067d1eb7591"
     };
 
-    // 嘗試讀取系統環境變數 (Canvas 環境)
-    try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch(e) {}
+    const urlParams = new URLSearchParams(window.location.search);
+    const isAdmin = urlParams.get('admin') === 'true';
+    if (isAdmin) {
+      document.getElementById('adminStats').style.display = 'block';
+    }
 
-    if (firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("請替換")) {
+    if (firebaseConfig.apiKey) {
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
       const appId = 'arms-race-prod'; 
+
+      // 取得台灣時間日期字串 (YYYY-MM-DD)
+      const getTaiwanDate = () => {
+        return new Intl.DateTimeFormat('zh-TW', {
+          timeZone: 'Asia/Taipei',
+          year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date()).replace(/\//g, '-');
+      };
 
       const initAuth = async () => {
         try {
@@ -141,35 +164,30 @@
 
       onAuthStateChanged(auth, async (user) => {
         if (!user) return;
+        const todayStr = getTaiwanDate();
         const statsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'global_stats');
+        const dailyDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'daily_' + todayStr);
         
-        // 訪客計數邏輯
+        // 訪客計數：同時更新全球與每日
         if (!sessionStorage.getItem('visited')) {
-          try {
-            await setDoc(statsDoc, { visits: increment(1) }, { merge: true });
-            sessionStorage.setItem('visited', 'true');
-          } catch(e) {
-            // 若為首次建立，手動初始化
-            await setDoc(statsDoc, { visits: 1 });
-            sessionStorage.setItem('visited', 'true');
-          }
+          const updateObj = { visits: increment(1) };
+          Promise.all([
+            setDoc(statsDoc, updateObj, { merge: true }),
+            setDoc(dailyDoc, updateObj, { merge: true })
+          ]).then(() => sessionStorage.setItem('visited', 'true'))
+            .catch(() => {});
         }
 
-        // 管理員模式偵測
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('admin') === 'true') {
-          const panel = document.getElementById('adminStats');
-          panel.style.display = 'block';
-          
+        // 管理員數據填充
+        if (isAdmin) {
+          // 監聽全球總數
           onSnapshot(statsDoc, (snapshot) => {
-            if (snapshot.exists()) {
-              document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
-            } else {
-              document.getElementById('visitCount').innerText = "0";
-            }
-          }, (error) => {
-            document.getElementById('visitCount').innerText = "權限不足";
-            console.error("Firestore Listen Error", error);
+            if (snapshot.exists()) document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
+          });
+          // 監聽今日小計
+          onSnapshot(dailyDoc, (snapshot) => {
+            if (snapshot.exists()) document.getElementById('todayVisitCount').innerText = snapshot.data().visits || 0;
+            else document.getElementById('todayVisitCount').innerText = "1";
           });
         }
       });
@@ -207,46 +225,41 @@
       
       let current = null, nextGlobal = null;
       const eventMap = {};
-
       const todaySchedule = SCHEDULE[currentDay];
+
       for (let item of todaySchedule) { if (nowMins >= timeToMinutes(item.time)) current = { ...item, day: currentDay }; }
       if (!current) {
         const yesterdayIdx = (now.getDay() + 6) % 7;
-        const yesterdayName = weekdays[yesterdayIdx];
-        current = { ...SCHEDULE[yesterdayName][5], day: yesterdayName };
+        current = { ...SCHEDULE[weekdays[yesterdayIdx]][5], day: weekdays[yesterdayIdx] };
       }
-
       for (let item of todaySchedule) { if (nowMins < timeToMinutes(item.time)) { if (!nextGlobal) nextGlobal = { ...item, wait: timeToMinutes(item.time) - nowMins }; } }
       if (!nextGlobal) {
         const nextD = SCHEDULE[weekdays[(now.getDay()+1)%7]][0];
         nextGlobal = { ...nextD, wait: (1440 - nowMins) + timeToMinutes(nextD.time) };
       }
 
-      // 優化後的任務穿透偵測
       ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(ev => {
-        let results = [], starredOccurrenceWait = null;
-        for (let i = 0; i < 14; i++) {
+        let results = [], naturalTime = "";
+        for (let i = 0; i < 14 && results.length < 2; i++) {
           const dIdx = (now.getDay() + i) % 7;
           for (let item of SCHEDULE[weekdays[dIdx]]) {
             const total = i * 1440 + timeToMinutes(item.time);
             if (total > nowMins && item.event === ev) {
-              if (results.length < 2) results.push(total - nowMins);
-              if (item.time === starTriggerSlot && starredOccurrenceWait === null) starredOccurrenceWait = total - nowMins;
+              if (results.length === 0) naturalTime = item.time;
+              results.push(total - nowMins);
             }
           }
-          if (results.length >= 2 && (starredOccurrenceWait !== null || i > 7)) break;
         }
-
-        const hasStar = (starredOccurrenceWait !== null);
+        const hasStar = (naturalTime === starTriggerSlot);
         let advancedWait = null, isInvalidExchange = false;
         if (hasStar && advanceToSlot !== 'none') {
-          if (isSameCycleEarlier(advanceToSlot, starTriggerSlot)) {
-            const timeDiff = (timeToMinutes(starTriggerSlot) - timeToMinutes(advanceToSlot) + 1440) % 1440;
-            const calc = starredOccurrenceWait - timeDiff;
+          if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
+            const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
+            const calc = results[0] - timeDiff;
             if (calc > 0) advancedWait = calc; else isInvalidExchange = true;
           } else isInvalidExchange = true;
         }
-        eventMap[ev] = { wait1: results[0] || null, wait2: results[1] || null, hasStar, advancedWait, isInvalidExchange };
+        eventMap[ev] = { naturalTime, wait1: results[0], wait2: results[1], hasStar, advancedWait, isInvalidExchange };
       });
 
       return { currentDay, currentTimeStr: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`, current, nextGlobal, eventMap };
