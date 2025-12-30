@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 交換時段改良版</title>
+  <title>軍備時間查詢工具 - 戰術整合改良版</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -48,7 +48,23 @@
     .invalid-rule { color: var(--error-text); font-size: 0.75rem; font-weight: 500; }
     .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
-    #adminStats { position: fixed; bottom: 20px; right: 20px; background: var(--primary-color); color: white; padding: 10px 15px; border-radius: 50px; font-size: 0.8rem; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); display: none; z-index: 1000; opacity: 0.8; }
+    
+    /* 修改：讓管理員統計更明顯一點 */
+    #adminStats { 
+      position: fixed; 
+      bottom: 20px; 
+      right: 20px; 
+      background: var(--primary-color); 
+      color: white; 
+      padding: 12px 20px; 
+      border-radius: 50px; 
+      font-size: 0.85rem; 
+      font-weight: 800; 
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
+      display: none; 
+      z-index: 9999; 
+      border: 2px solid rgba(255,255,255,0.2);
+    }
     @media (max-width: 600px) { th, td { padding: 8px 6px; font-size: 0.8rem; } }
   </style>
 </head>
@@ -85,59 +101,75 @@
     </div>
   </div>
 
-  <div id="adminStats">📊 累計訪客：<span id="visitCount">載入中...</span></div>
+  <!-- 管理員統計面板 -->
+  <div id="adminStats">📊 累計訪客：<span id="visitCount">校驗中...</span></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, increment, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    /* ------------------------------------------------------------
-       重要：請在此處填入您在 Firebase 控制台取得的配置資訊
-       ------------------------------------------------------------ */
-    const firebaseConfig = {
-  apiKey: "AIzaSyAtn7-VkqIPBnKbwMrOo5nUaDW8IGnoacg",
-  authDomain: "firestore-database-4444c.firebaseapp.com",
-  projectId: "firestore-database-4444c",
-  storageBucket: "firestore-database-4444c.firebasestorage.app",
-  messagingSenderId: "1042379916484",
-  appId: "1:1042379916484:web:c175885526d067d1eb7591"
-};
+    // 修改：使用 let 允許覆寫，解決賦值錯誤
+    let firebaseConfig = {
+      apiKey: "AIzaSyAtn7-VkqIPBnKbwMrOo5nUaDW8IGnoacg",
+      authDomain: "firestore-database-4444c.firebaseapp.com",
+      projectId: "firestore-database-4444c",
+      storageBucket: "firestore-database-4444c.firebasestorage.app",
+      messagingSenderId: "1042379916484",
+      appId: "1:1042379916484:web:c175885526d067d1eb7591"
+    };
 
-    // 容錯檢查：若在測試環境則嘗試讀取系統變數
-    try { if (typeof __firebase_config !== 'undefined') firebaseConfig = JSON.parse(__firebase_config); } catch(e) {}
+    // 嘗試讀取系統環境變數 (Canvas 環境)
+    try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch(e) {}
 
     if (firebaseConfig.apiKey && !firebaseConfig.apiKey.includes("請替換")) {
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
-      const appId = 'arms-race-prod'; // 可自定義識別 ID
+      const appId = 'arms-race-prod'; 
 
       const initAuth = async () => {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        try {
+          if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+        } catch(e) { console.error("Firebase Auth Error", e); }
       };
       initAuth();
 
-      onAuthStateChanged(auth, (user) => {
+      onAuthStateChanged(auth, async (user) => {
         if (!user) return;
         const statsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'global_stats');
         
-        // 訪客計數
+        // 訪客計數邏輯
         if (!sessionStorage.getItem('visited')) {
-          setDoc(statsDoc, { visits: increment(1) }, { merge: true }).catch(() => {});
-          sessionStorage.setItem('visited', 'true');
+          try {
+            await setDoc(statsDoc, { visits: increment(1) }, { merge: true });
+            sessionStorage.setItem('visited', 'true');
+          } catch(e) {
+            // 若為首次建立，手動初始化
+            await setDoc(statsDoc, { visits: 1 });
+            sessionStorage.setItem('visited', 'true');
+          }
         }
 
-        // 管理員偵測 (?admin=true)
+        // 管理員模式偵測
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('admin') === 'true') {
-          document.getElementById('adminStats').style.display = 'block';
+          const panel = document.getElementById('adminStats');
+          panel.style.display = 'block';
+          
           onSnapshot(statsDoc, (snapshot) => {
-            if (snapshot.exists()) document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
+            if (snapshot.exists()) {
+              document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
+            } else {
+              document.getElementById('visitCount').innerText = "0";
+            }
+          }, (error) => {
+            document.getElementById('visitCount').innerText = "權限不足";
+            console.error("Firestore Listen Error", error);
           });
         }
       });
@@ -145,7 +177,6 @@
   </script>
 
   <script>
-    /* 此處保留核心計算邏輯，與您之前的版本完全一致 */
     const SCHEDULE = {
       "星期一": [{time:"02:00",event:"士兵提升"},{time:"06:00",event:"科技研發"},{time:"10:00",event:"城市建設"},{time:"14:00",event:"士兵提升"},{time:"18:00",event:"英雄提升"},{time:"22:00",event:"科技研發"}],
       "星期二": [{time:"02:00",event:"無人機強化"},{time:"06:00",event:"英雄提升"},{time:"10:00",event:"士兵提升"},{time:"14:00",event:"科技研發"},{time:"18:00",event:"城市建設"},{time:"22:00",event:"無人機強化"}],
@@ -157,58 +188,72 @@
     };
     const SLOTS = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"];
     const BASELINE_MINS = 600;
+
     let starTriggerSlot = localStorage.getItem('tactical_star_trigger') || "02:00";
     let advanceToSlot = localStorage.getItem('tactical_advance_to') || "22:00";
+
     function timeToMinutes(time) { if (!time || time === 'none') return -1; const [h, m] = time.split(":").map(Number); return h * 60 + m; }
+    
     function isSameCycleEarlier(targetTime, naturalTime) {
       const getOffset = (m) => (m - BASELINE_MINS + 1440) % 1440;
       return getOffset(timeToMinutes(targetTime)) < getOffset(timeToMinutes(naturalTime));
     }
+
     function calculateFullData() {
       const now = new Date();
       const weekdays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
       const currentDay = weekdays[now.getDay()];
       const nowMins = now.getHours() * 60 + now.getMinutes();
+      
       let current = null, nextGlobal = null;
       const eventMap = {};
+
       const todaySchedule = SCHEDULE[currentDay];
       for (let item of todaySchedule) { if (nowMins >= timeToMinutes(item.time)) current = { ...item, day: currentDay }; }
       if (!current) {
         const yesterdayIdx = (now.getDay() + 6) % 7;
         const yesterdayName = weekdays[yesterdayIdx];
-        current = { ...SCHEDULE[yesterdayName][SCHEDULE[yesterdayName].length - 1], day: yesterdayName };
+        current = { ...SCHEDULE[yesterdayName][5], day: yesterdayName };
       }
+
       for (let item of todaySchedule) { if (nowMins < timeToMinutes(item.time)) { if (!nextGlobal) nextGlobal = { ...item, wait: timeToMinutes(item.time) - nowMins }; } }
       if (!nextGlobal) {
         const nextD = SCHEDULE[weekdays[(now.getDay()+1)%7]][0];
         nextGlobal = { ...nextD, wait: (1440 - nowMins) + timeToMinutes(nextD.time) };
       }
+
+      // 優化後的任務穿透偵測
       ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(ev => {
-        let results = [], naturalTime = "";
-        for (let i = 0; i < 14 && results.length < 2; i++) {
+        let results = [], starredOccurrenceWait = null;
+        for (let i = 0; i < 14; i++) {
           const dIdx = (now.getDay() + i) % 7;
           for (let item of SCHEDULE[weekdays[dIdx]]) {
             const total = i * 1440 + timeToMinutes(item.time);
             if (total > nowMins && item.event === ev) {
-              if (results.length === 0) naturalTime = item.time;
-              results.push(total - nowMins);
+              if (results.length < 2) results.push(total - nowMins);
+              if (item.time === starTriggerSlot && starredOccurrenceWait === null) starredOccurrenceWait = total - nowMins;
             }
           }
+          if (results.length >= 2 && (starredOccurrenceWait !== null || i > 7)) break;
         }
-        const hasStar = (naturalTime === starTriggerSlot);
+
+        const hasStar = (starredOccurrenceWait !== null);
         let advancedWait = null, isInvalidExchange = false;
         if (hasStar && advanceToSlot !== 'none') {
-          if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
-            const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
-            const calc = results[0] - timeDiff;
+          if (isSameCycleEarlier(advanceToSlot, starTriggerSlot)) {
+            const timeDiff = (timeToMinutes(starTriggerSlot) - timeToMinutes(advanceToSlot) + 1440) % 1440;
+            const calc = starredOccurrenceWait - timeDiff;
             if (calc > 0) advancedWait = calc; else isInvalidExchange = true;
           } else isInvalidExchange = true;
         }
-        eventMap[ev] = { naturalTime, wait1: results[0], wait2: results[1], hasStar, advancedWait, isInvalidExchange };
+        eventMap[ev] = { wait1: results[0] || null, wait2: results[1] || null, hasStar, advancedWait, isInvalidExchange };
       });
+
       return { currentDay, currentTimeStr: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`, current, nextGlobal, eventMap };
     }
+
     function formatWait(mins) { if (mins === null || isNaN(mins)) return "--:--"; return `${Math.floor(mins / 60).toString().padStart(2, '0')}:${(mins % 60).toString().padStart(2, '0')}`; }
+
     function renderUI() {
       const { currentDay, currentTimeStr, current, nextGlobal, eventMap } = calculateFullData();
       document.getElementById("statusContent").innerHTML = `
@@ -217,6 +262,7 @@
         <div class="status-item"><div class="status-label">下個階段預告</div><div class="status-value">${nextGlobal?.event} <span style="font-size:0.8rem; color:var(--text-muted)">(於 ${formatWait(nextGlobal?.wait)} 後到來)</span></div></div>
       `;
       document.getElementById("lastUpdate").innerText = `最後同步：${new Date().toLocaleTimeString('zh-TW')}`;
+
       const events = ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"];
       let h1 = `<table><thead><tr><th>軍備項目</th><th>下次倒數</th><th class="tactical-cell"><div style="display:flex;align-items:center;justify-content:center;gap:5px;">
         <select class="star-select" onchange="updateStarTrigger(this.value)">${SLOTS.map(s=>`<option value="${s}" ${starTriggerSlot===s?'selected':''}>★ ${s}</option>`).join('')}</select>
@@ -233,9 +279,11 @@
         h1 += `<tr><td>${name}</td><td class="natural-time">${formatWait(row.wait1)}</td><td><div class="tactical-result">${tact}</div></td></tr>`;
       });
       document.getElementById("summary1").innerHTML = h1 + "</tbody></table>";
+
       let h2 = `<table><thead><tr><th>軍備項目</th><th>下下次倒數</th></tr></thead><tbody>`;
       events.forEach(name => { h2 += `<tr><td>${name}</td><td class="natural-time" style="color:var(--text-muted)">${formatWait(eventMap[name].wait2)}</td></tr>`; });
       document.getElementById("summary2").innerHTML = h2 + "</tbody></table>";
+
       const wDays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
       let ft = `<table><thead><tr><th>時段</th>${wDays.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
       SLOTS.forEach(t => {
@@ -245,6 +293,7 @@
       });
       document.getElementById("fullTable").innerHTML = ft + "</tbody></table>";
     }
+
     function updateStarTrigger(val) { starTriggerSlot = val; localStorage.setItem('tactical_star_trigger', val); renderUI(); }
     function updateAdvanceTo(val) { advanceToSlot = val; localStorage.setItem('tactical_advance_to', val); renderUI(); }
     function toggleTheme() { document.body.classList.toggle('light'); localStorage.setItem('theme', document.body.classList.contains('light')?'light':'dark'); }
