@@ -49,7 +49,6 @@
     .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
     
-    /* 管理員面板：雙欄優化 */
     #adminStats { 
       position: fixed; 
       bottom: 20px; 
@@ -105,7 +104,6 @@
     </div>
   </div>
 
-  <!-- 管理員面板 -->
   <div id="adminStats">
     <div class="admin-row">
       <span class="admin-label">📅 今日新增：</span>
@@ -122,7 +120,6 @@
     import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // 基礎配置
     let firebaseConfig = {
       apiKey: "AIzaSyAtn7-VkqIPBnKbwMrOo5nUaDW8IGnoacg",
       authDomain: "firestore-database-4444c.firebaseapp.com",
@@ -132,15 +129,11 @@
       appId: "1:1042379916484:web:c175885526d067d1eb7591"
     };
 
-    // 嘗試環境變數注入
     try { if (typeof __firebase_config !== 'undefined' && __firebase_config) firebaseConfig = JSON.parse(__firebase_config); } catch(e) {}
 
-    // 管理員 UI 判定與顯示
     const urlParams = new URLSearchParams(window.location.search);
     const isAdmin = urlParams.get('admin') === 'true';
-    if (isAdmin) {
-      document.getElementById('adminStats').style.display = 'block';
-    }
+    if (isAdmin) document.getElementById('adminStats').style.display = 'block';
 
     if (firebaseConfig.apiKey) {
       const app = initializeApp(firebaseConfig);
@@ -148,14 +141,12 @@
       const db = getFirestore(app);
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'arms-race-prod'; 
 
-      // 取得標準日期字串 (YYYY-MM-DD)
       const getTaiwanDateStr = () => {
         const d = new Date();
         const offset = d.getTimezoneOffset() * 60000;
         const localTime = d.getTime();
         const taipeiTime = localTime + offset + (3600000 * 8);
-        const taipeiDate = new Date(taipeiTime);
-        return taipeiDate.toISOString().split('T')[0];
+        return new Date(taipeiTime).toISOString().split('T')[0];
       };
 
       const initAuth = async () => {
@@ -163,13 +154,19 @@
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(auth, __initial_auth_token);
           } else {
-            await signInAnonymously(auth);
+            await signInAnonymously(auth).catch(err => {
+              if (err.code === 'auth/operation-not-allowed') {
+                throw new Error("請前往 Firebase Console 開啟『匿名身份驗證』功能。");
+              }
+              throw err;
+            });
           }
         } catch(e) { 
-          console.error("Firebase Auth Error", e); 
+          console.error("Firebase Auth Error:", e); 
           if (isAdmin) {
-            document.getElementById('visitCount').innerText = "驗證失敗";
-            document.getElementById('todayVisitCount').innerText = "驗證失敗";
+            const msg = e.message.includes("匿名") ? "未啟動匿名登入" : "驗證失敗";
+            document.getElementById('visitCount').innerText = msg;
+            document.getElementById('todayVisitCount').innerText = msg;
           }
         }
       };
@@ -177,41 +174,37 @@
 
       onAuthStateChanged(auth, async (user) => {
         if (!user) return;
-        
         const todayStr = getTaiwanDateStr();
-        // 嚴格遵循路徑規則：artifacts/{appId}/public/data/{collectionName}
         const statsDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'global_stats');
         const dailyDoc = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'daily_' + todayStr);
         
-        // 訪客計數：改良寫入
         if (!sessionStorage.getItem('visited')) {
           const updateObj = { visits: increment(1) };
           Promise.all([
             setDoc(statsDoc, updateObj, { merge: true }),
             setDoc(dailyDoc, updateObj, { merge: true })
-          ]).then(() => sessionStorage.setItem('visited', 'true'))
-            .catch((err) => console.error("Write error", err));
+          ]).then(() => sessionStorage.setItem('visited', 'true')).catch(() => {});
         }
 
-        // 管理員監聽：修正「校驗中」卡住的問題
         if (isAdmin) {
-          onSnapshot(statsDoc, (snapshot) => {
-            if (snapshot.exists()) {
-              document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
-            } else {
-              document.getElementById('visitCount').innerText = "0";
+          // 設置一個安全超時，防止卡在「校驗中」
+          const timeout = setTimeout(() => {
+            if (document.getElementById('visitCount').innerText === "校驗中...") {
+              document.getElementById('visitCount').innerText = "連線超時";
+              document.getElementById('todayVisitCount').innerText = "連線超時";
             }
+          }, 5000);
+
+          onSnapshot(statsDoc, (snapshot) => {
+            clearTimeout(timeout);
+            document.getElementById('visitCount').innerText = snapshot.exists() ? snapshot.data().visits || 0 : "0";
           }, (err) => {
+            clearTimeout(timeout);
             document.getElementById('visitCount').innerText = "權限被擋";
-            console.error(err);
           });
 
           onSnapshot(dailyDoc, (snapshot) => {
-            if (snapshot.exists()) {
-              document.getElementById('todayVisitCount').innerText = snapshot.data().visits || 0;
-            } else {
-              document.getElementById('todayVisitCount').innerText = "0";
-            }
+            document.getElementById('todayVisitCount').innerText = snapshot.exists() ? snapshot.data().visits || 0 : "0";
           }, (err) => {
             document.getElementById('todayVisitCount').innerText = "權限被擋";
           });
@@ -243,20 +236,14 @@
       return getOffset(timeToMinutes(targetTime)) < getOffset(timeToMinutes(naturalTime));
     }
 
-    /**
-     * 核心計算引擎：已回歸「只偵測下一次發生時段」
-     */
     function calculateFullData() {
       const now = new Date();
       const weekdays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
       const currentDay = weekdays[now.getDay()];
       const nowMins = now.getHours() * 60 + now.getMinutes();
-      
       let current = null, nextGlobal = null;
       const eventMap = {};
       const todaySchedule = SCHEDULE[currentDay];
-
-      // 1. 判定當前時段與全域下一個時段
       for (let item of todaySchedule) { if (nowMins >= timeToMinutes(item.time)) current = { ...item, day: currentDay }; }
       if (!current) {
         const yesterdayIdx = (now.getDay() + 6) % 7;
@@ -267,12 +254,8 @@
         const nextD = SCHEDULE[weekdays[(now.getDay()+1)%7]][0];
         nextGlobal = { ...nextD, wait: (1440 - nowMins) + timeToMinutes(nextD.time) };
       }
-
-      // 2. 專項任務處理：只取第一個符合條件的「下一次」
       ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(ev => {
         let results = [], naturalTime = "";
-        
-        // 搜尋未來 14 天內最近的兩次發生
         for (let i = 0; i < 14 && results.length < 2; i++) {
           const dIdx = (now.getDay() + i) % 7;
           for (let item of SCHEDULE[weekdays[dIdx]]) {
@@ -283,11 +266,8 @@
             }
           }
         }
-
-        // 規則：標記 ★ 僅針對「下一次」發生
         const hasStar = (naturalTime === starTriggerSlot);
         let advancedWait = null, isInvalidExchange = false;
-
         if (hasStar && advanceToSlot !== 'none') {
           if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
             const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
@@ -297,12 +277,9 @@
         }
         eventMap[ev] = { naturalTime, wait1: results[0], wait2: results[1], hasStar, advancedWait, isInvalidExchange };
       });
-
       return { currentDay, currentTimeStr: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`, current, nextGlobal, eventMap };
     }
-
     function formatWait(mins) { if (mins === null || isNaN(mins)) return "--:--"; return `${Math.floor(mins / 60).toString().padStart(2, '0')}:${(mins % 60).toString().padStart(2, '0')}`; }
-
     function renderUI() {
       const { currentDay, currentTimeStr, current, nextGlobal, eventMap } = calculateFullData();
       document.getElementById("statusContent").innerHTML = `
@@ -311,7 +288,6 @@
         <div class="status-item"><div class="status-label">下個階段預告</div><div class="status-value">${nextGlobal?.event} <span style="font-size:0.8rem; color:var(--text-muted)">(於 ${formatWait(nextGlobal?.wait)} 後到來)</span></div></div>
       `;
       document.getElementById("lastUpdate").innerText = `最後同步：${new Date().toLocaleTimeString('zh-TW')}`;
-
       const events = ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"];
       let h1 = `<table><thead><tr><th>軍備項目</th><th>下次倒數</th><th class="tactical-cell"><div style="display:flex;align-items:center;justify-content:center;gap:5px;">
         <select class="star-select" onchange="updateStarTrigger(this.value)">${SLOTS.map(s=>`<option value="${s}" ${starTriggerSlot===s?'selected':''}>★ ${s}</option>`).join('')}</select>
@@ -328,11 +304,9 @@
         h1 += `<tr><td>${name}</td><td class="natural-time">${formatWait(row.wait1)}</td><td><div class="tactical-result">${tact}</div></td></tr>`;
       });
       document.getElementById("summary1").innerHTML = h1 + "</tbody></table>";
-
       let h2 = `<table><thead><tr><th>軍備項目</th><th>下下次倒數</th></tr></thead><tbody>`;
       events.forEach(name => { h2 += `<tr><td>${name}</td><td class="natural-time" style="color:var(--text-muted)">${formatWait(eventMap[name].wait2)}</td></tr>`; });
       document.getElementById("summary2").innerHTML = h2 + "</tbody></table>";
-
       const wDays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
       let ft = `<table><thead><tr><th>時段</th>${wDays.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
       SLOTS.forEach(t => {
@@ -342,7 +316,6 @@
       });
       document.getElementById("fullTable").innerHTML = ft + "</tbody></table>";
     }
-
     function updateStarTrigger(val) { starTriggerSlot = val; localStorage.setItem('tactical_star_trigger', val); renderUI(); }
     function updateAdvanceTo(val) { advanceToSlot = val; localStorage.setItem('tactical_advance_to', val); renderUI(); }
     function toggleTheme() { document.body.classList.toggle('light'); localStorage.setItem('theme', document.body.classList.contains('light')?'light':'dark'); }
