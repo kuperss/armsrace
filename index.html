@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 時段交換改良版</title>
+  <title>軍備時間查詢工具 - 戰術整合改良版</title>
   <!-- 引入 Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
@@ -63,13 +63,13 @@
     
     .current-cell { background-color: var(--highlight-bg) !important; color: var(--highlight-text); font-weight: 700; }
     
-    .tactical-cell { min-width: 240px; }
+    .tactical-cell { min-width: 250px; } /* 增加寬度以支撐警告文字 */
     .tactical-result { 
       display: flex; 
       align-items: center; 
       justify-content: center; 
       gap: 8px; 
-      white-space: nowrap; 
+      white-space: nowrap; /* 強制不換行 */
       line-height: 1.6; 
     }
     .star-mark { color: var(--star-color); font-weight: bold; font-size: 1.1rem; }
@@ -99,7 +99,7 @@
       <div class="section-header">
         <div class="title-group">
           <h2 class="section-title">軍備項目倒數</h2>
-          <!-- （AI小編註：）這裡對關鍵字進行了著色處理，讓使用者能更快速理解選單的對應關係 -->
+          <!-- 更新：將關鍵字著色為黃色與綠色 -->
           <span class="section-hint">可在下方自行選擇想交換的<span style="color: var(--star-color); font-weight: 700;">目標時段</span>，再選擇想<span style="color: var(--accent-color); font-weight: 700;">提前到哪個時段</span>，即可查看變更後的剩餘時間</span>
         </div>
       </div>
@@ -157,10 +157,26 @@
       let current = null, nextGlobal = null;
       const eventMap = {};
 
-      for (let item of SCHEDULE[currentDay]) {
-        const itemMins = timeToMinutes(item.time);
-        if (nowMins < itemMins) { if (!nextGlobal) nextGlobal = { ...item, wait: itemMins - nowMins }; }
-        else { current = { ...item }; }
+      // 修正：當前項目判定（解決凌晨 00:00-02:00 顯示準備中的問題）
+      const todaySchedule = SCHEDULE[currentDay];
+      for (let item of todaySchedule) {
+        if (nowMins >= timeToMinutes(item.time)) {
+          current = { ...item };
+        }
+      }
+
+      if (!current) {
+        // 如果今天還沒開始任何時段，則抓昨天最後一個時段
+        const yesterdayIdx = (now.getDay() + 6) % 7;
+        const yesterdaySchedule = SCHEDULE[weekdays[yesterdayIdx]];
+        current = { ...yesterdaySchedule[yesterdaySchedule.length - 1] };
+      }
+
+      // 找出下一個全域任務
+      for (let item of todaySchedule) {
+        if (nowMins < timeToMinutes(item.time)) {
+          if (!nextGlobal) nextGlobal = { ...item, wait: timeToMinutes(item.time) - nowMins };
+        }
       }
       if (!nextGlobal) {
         const nextD = SCHEDULE[weekdays[(now.getDay()+1)%7]][0];
@@ -188,9 +204,12 @@
         let isInvalidExchange = false;
 
         if (hasStar && advanceToSlot !== 'none') {
+          // 判定1：是否屬於同週期內的「提前」時段
           if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
             const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
             const calculatedWait = results[0] - timeDiff;
+            
+            // 判定2：該提前時段是否在未來
             if (calculatedWait > 0) {
               advancedWait = calculatedWait;
             } else {
@@ -250,6 +269,7 @@
           if (row.advancedWait !== null) {
             tacticalContent += `<span class="advance-time">${formatWait(row.advancedWait)}</span>`;
           } else if (row.isInvalidExchange && advanceToSlot !== 'none') {
+            // 更新：強制不換行提示
             tacticalContent += `<span class="invalid-rule">不符合交換提前規則</span>`;
           }
         }
