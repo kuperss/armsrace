@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 時段交換改良版</title>
+  <title>軍備時間查詢工具 - 時段交換加強版</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -37,12 +37,12 @@
     /* 修復末行邊框殘影 Bug */
     tr:last-child td { border-bottom: none; }
 
-    /* 左側表格欄位比例 (電腦版) */
+    /* 左側表格欄位比例 */
     #summary1 .col-event { width: 40%; text-align: left; padding-left: 15px !important; font-weight: 700; border-right: 1px solid var(--border-color); }
     #summary1 .col-time { width: 22%; font-family: monospace; font-size: 1rem; }
     #summary1 .col-tactical { width: 38%; }
 
-    /* 右側表格 (電腦版) */
+    /* 右側表格：強制雙欄架構，達成絕對置中視覺感 */
     #summary2 .col-event { width: 60%; text-align: center !important; padding-left: 0 !important; font-weight: 700; border-right: 1px solid var(--border-color); }
     #summary2 .col-time { width: 40%; text-align: center !important; font-family: monospace; font-size: 1rem; }
     #summary2 th, #summary2 td { text-align: center !important; padding-left: 0 !important; }
@@ -70,16 +70,16 @@
     .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .status-item { padding: 12px; border-radius: 8px; background: var(--bg-color); }
     .status-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
-    .status-value { font-size: 1.05rem; font-weight: 500; white-space: nowrap; }
+    .status-value { font-size: 1.05rem; font-weight: 500; }
     
-    /* 星期幾標籤 */
+    /* 1. 星期幾標籤微調 */
     .badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 1rem; font-weight: 700; margin-left: 12px; background: var(--primary-color); color: white; vertical-align: middle; }
     
     .summary-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
     .scroll-container { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
     .star-mark { color: var(--star-color); font-weight: bold; font-size: 1.1rem; }
     .advance-time { color: var(--accent-color); font-weight: 700; font-family: monospace; font-size: 1.05rem; }
-    .invalid-rule { color: var(--error-text); font-size: 0.75rem; font-weight: 500; }
+    .invalid-rule { color: var(--text-muted); font-size: 0.75rem; font-weight: 500; }
     .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
     
@@ -89,31 +89,22 @@
     .admin-label { opacity: 0.8; }
     .admin-value { font-weight: 800; font-family: monospace; }
 
-    /* 週表表頭 */
-    .week-table th { font-size: 1.15rem; font-weight: 700; padding: 12px 2px; color: var(--text-main); }
+    /* 週表表頭微調 */
+    .week-table th { font-size: 1.05rem; font-weight: 700; padding: 12px 2px; color: var(--text-main); }
 
     /* 行動裝置排版深度修正 */
     @media (max-width: 768px) {
       .container { padding: 10px; }
       th, td { padding: 0 4px; font-size: 0.8rem; }
       
-      /* 頂部防換行優化 */
-      h1 { font-size: 1.15rem; letter-spacing: -0.5px; }
-      .badge { font-size: 0.85rem; padding: 2px 8px; margin-left: 6px; }
-      .status-grid { grid-template-columns: 1fr; gap: 10px; }
-      .status-value { font-size: 0.95rem; }
-
-      /* 關鍵修正：將「紅線」向左推，縮小項目欄 (30%)，釋放右側空間 (70%) */
-      .col-event { width: 30% !important; padding-left: 8px !important; }
-      
-      /* summary1: 時間與戰術區塊比例分配 */
+      /* 關鍵修正：對齊上下表格的「紅線」(分割線) */
+      .col-event { width: 30% !important; padding-left: 10px !important; }
       #summary1 .col-time { width: 30%; }
       #summary1 .col-tactical { width: 40%; }
-      
-      /* summary2: 同步對齊分割線，內容區塊分配其餘 70% */
       #summary2 .col-time { width: 70%; }
 
-      .week-table th { font-size: 0.95rem; }
+      .badge { font-size: 0.95rem; padding: 3px 8px; }
+      .week-table th { font-size: 0.9rem; }
       .week-table { min-width: 500px; }
     }
   </style>
@@ -122,7 +113,7 @@
 
   <div class="container">
     <header>
-      <h1>軍備查詢工具 <span>by #1389 KupeR</span></h1>
+      <h1>軍備時間查詢工具 <span>by #1389 KupeR</span></h1>
       <button class="btn-toggle" onclick="toggleTheme()">🌓 切換模式</button>
     </header>
 
@@ -278,11 +269,11 @@
       return { dName, nMins, cur, nGlob, eMap };
     }
 
-    function fmt(m) { if (m === null || isNaN(m)) return "--:--"; return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`; }
+    function fmt(m) { if (m === null || isNaN(m) || m < 0) return "--:--"; return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`; }
 
     function renderUI() {
       const data = calculateFullData();
-      const isMobile = window.innerWidth <= 768; // 偵測是否為手機版
+      const isMobile = window.innerWidth <= 768;
 
       document.getElementById("statusContent").innerHTML = `
         <div class="status-item"><div class="status-label">目前時間 GMT+8</div><div class="status-value">${new Date().getHours().toString().padStart(2,'0')}:${new Date().getMinutes().toString().padStart(2,'0')} <span class="badge">${data.dName}</span></div></div>
@@ -301,8 +292,8 @@
       ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(name => {
         const row = data.eMap[name];
         let tact = row.hasS ? `<span class="star-mark">★</span>` : "";
-        if (row.hasS && row.advW) tact += `<span class="advance-time">${fmt(row.advW)}</span>`;
-        else if (row.hasS && row.inv && advanceToSlot !== 'none') tact += `<span class="invalid-rule">無效</span>`;
+        if (row.hasS && row.advW > 0) tact += `<span class="advance-time">${fmt(row.advW)}</span>`;
+        else if (row.hasS && (row.inv || row.advW <= 0) && advanceToSlot !== 'none') tact += `<span class="invalid-rule">無效</span>`;
         h1 += `<tr><td class="col-event">${name}</td><td class="col-time">${fmt(row.w1)}</td><td class="col-tactical"><div class="tactical-result">${tact}</div></td></tr>`;
       });
       document.getElementById("summary1").innerHTML = h1 + "</tbody></table>";
@@ -313,7 +304,7 @@
       });
       document.getElementById("summary2").innerHTML = h2 + "</tbody></table>";
 
-      let ft = `<table class="week-table"><thead><tr><th style="width:75px">時段</th>${["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d=>`<th>${d.substring(2,3)}</th>`).join('')}</tr></thead><tbody>`;
+      let ft = `<table><thead><tr><th style="width:75px">時段</th>${["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d=>`<th>${d.substring(2,3)}</th>`).join('')}</tr></thead><tbody>`;
       SLOTS.forEach(t => {
         ft += `<tr><td><strong>${t}</strong></td>`;
         ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].forEach(d => {
@@ -336,4 +327,3 @@
   </script>
 </body>
 </html>
-
