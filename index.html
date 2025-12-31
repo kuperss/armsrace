@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 時段交換改良版</title>
+  <title>軍備時間查詢工具 - 管理員加強版</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -28,72 +28,92 @@
     .section-title { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--primary-color); padding-left: 10px; margin: 0; }
     .section-hint { font-size: 0.8rem; color: var(--text-muted); }
     
-    /* 核心表格佈局 */
+    /* 核心表格佈局：強制水平格線對齊 */
     table { width: 100%; border-collapse: collapse; background: var(--card-bg); table-layout: fixed; }
     th, td { padding: 0 12px; text-align: center; border-bottom: 1px solid var(--border-color); overflow: hidden; }
     th { background-color: var(--bg-color); font-weight: 500; color: var(--text-muted); font-size: 0.85rem; height: 60px; }
     td { height: 52px; }
+    
+    /* 修復末行邊框殘影 Bug */
     tr:last-child td { border-bottom: none; }
 
-    /* 上下表格分隔紅線對齊邏輯 (Desktop) */
+    /* 左側表格欄位比例 (電腦版) */
     #summary1 .col-event { width: 40%; text-align: left; padding-left: 15px !important; font-weight: 700; border-right: 1px solid var(--border-color); }
     #summary1 .col-time { width: 22%; font-family: monospace; font-size: 1rem; }
     #summary1 .col-tactical { width: 38%; }
 
+    /* 右側表格 (電腦版) */
     #summary2 .col-event { width: 60%; text-align: center !important; padding-left: 0 !important; font-weight: 700; border-right: 1px solid var(--border-color); }
     #summary2 .col-time { width: 40%; text-align: center !important; font-family: monospace; font-size: 1rem; }
     #summary2 th, #summary2 td { text-align: center !important; padding-left: 0 !important; }
 
-    /* 呼吸燈動畫 */
+    /* 呼吸燈動畫效果 */
     @keyframes breathingGlow {
       0% { box-shadow: inset 0 0 5px var(--star-color), 0 0 5px var(--star-color); background-color: var(--highlight-bg); }
       50% { box-shadow: inset 0 0 15px var(--star-color), 0 0 20px var(--star-color); background-color: #612c0a; }
       100% { box-shadow: inset 0 0 5px var(--star-color), 0 0 5px var(--star-color); background-color: var(--highlight-bg); }
     }
+
     .current-cell { 
       background-color: var(--highlight-bg) !important; color: var(--highlight-text); font-weight: 700; 
       animation: breathingGlow 2.5s infinite ease-in-out; position: relative; z-index: 1;
     }
 
-    .tactical-result { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+    .tactical-result { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; line-height: 1.6; }
     .tactical-header-flex { display: flex; align-items: center; justify-content: center; gap: 5px; height: 100%; }
+    
     .star-select, .advance-select { background: var(--bg-color); border: 1px solid var(--border-color); padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: 700; outline: none; height: 26px; }
     .star-select { color: var(--star-color); }
     .advance-select { color: var(--accent-color); }
 
+    /* 即時狀態樣式 */
     .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .status-item { padding: 12px; border-radius: 8px; background: var(--bg-color); }
     .status-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
-    .status-value { font-size: 1.05rem; font-weight: 500; }
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 6px; font-size: 0.95rem; font-weight: 700; margin-left: 12px; background: var(--primary-color); color: white; vertical-align: middle; }
+    .status-value { font-size: 1.05rem; font-weight: 500; white-space: nowrap; }
+    
+    /* 星期幾標籤 */
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 1rem; font-weight: 700; margin-left: 12px; background: var(--primary-color); color: white; vertical-align: middle; }
     
     .summary-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
     .scroll-container { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
     .star-mark { color: var(--star-color); font-weight: bold; font-size: 1.1rem; }
-    .advance-time { color: var(--accent-color); font-weight: 700; font-family: monospace; }
-    .invalid-rule { color: var(--error-text); font-size: 0.75rem; }
+    .advance-time { color: var(--accent-color); font-weight: 700; font-family: monospace; font-size: 1.05rem; }
+    .invalid-rule { color: var(--error-text); font-size: 0.75rem; font-weight: 500; }
+    .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
     
     #adminStats { position: fixed; bottom: 20px; right: 20px; background: var(--primary-color); color: white; padding: 12px 20px; border-radius: 16px; font-size: 0.8rem; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); display: none; z-index: 9999; border: 1px solid rgba(255, 255, 255, 0.2); }
     .admin-row { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 4px; }
+    .admin-row:last-child { margin-bottom: 0; }
+    .admin-label { opacity: 0.8; }
     .admin-value { font-weight: 800; font-family: monospace; }
 
-    .week-table th { font-size: 1.05rem; font-weight: 700; padding: 12px 2px; color: var(--text-main); }
+    /* 週表表頭 */
+    .week-table th { font-size: 1.15rem; font-weight: 700; padding: 12px 2px; color: var(--text-main); }
 
     /* 行動裝置排版深度修正 */
     @media (max-width: 768px) {
       .container { padding: 10px; }
-      th, td { padding: 0 6px; font-size: 0.8rem; }
+      th, td { padding: 0 4px; font-size: 0.8rem; }
       
-      /* 關鍵修正：對齊上下表格的「紅線」(分割線) */
-      .col-event { width: 35% !important; padding-left: 10px !important; }
-      #summary1 .col-time { width: 28%; }
-      #summary1 .col-tactical { width: 37%; }
-      #summary2 .col-time { width: 65%; }
+      /* 頂部防換行優化 */
+      h1 { font-size: 1.15rem; letter-spacing: -0.5px; }
+      .badge { font-size: 0.85rem; padding: 2px 8px; margin-left: 6px; }
+      .status-grid { grid-template-columns: 1fr; gap: 10px; }
+      .status-value { font-size: 0.95rem; }
 
-      .badge { font-size: 0.9rem; padding: 2px 8px; }
-      .week-table th { font-size: 0.9rem; }
-      /* 手機版週表最小寬度縮減，配合二字顯示 */
+      /* 關鍵修正：將「紅線」向左推，縮小項目欄 (30%)，釋放右側空間 (70%) */
+      .col-event { width: 30% !important; padding-left: 8px !important; }
+      
+      /* summary1: 時間與戰術區塊比例分配 */
+      #summary1 .col-time { width: 30%; }
+      #summary1 .col-tactical { width: 40%; }
+      
+      /* summary2: 同步對齊分割線，內容區塊分配其餘 70% */
+      #summary2 .col-time { width: 70%; }
+
+      .week-table th { font-size: 0.95rem; }
       .week-table { min-width: 500px; }
     }
   </style>
@@ -102,7 +122,7 @@
 
   <div class="container">
     <header>
-      <h1>軍備時間查詢工具 <span>by #1389 KupeR</span></h1>
+      <h1>軍備查詢工具 <span>by #1389 KupeR</span></h1>
       <button class="btn-toggle" onclick="toggleTheme()">🌓 切換模式</button>
     </header>
 
@@ -227,8 +247,8 @@
       const todayS = SCHEDULE[dName];
       todayS.forEach(i => { if (nMins >= tToM(i.time)) cur = { ...i, d: dName }; });
       if (!cur) {
-        const yName = weekdays[(now.getDay() + 6) % 7];
-        cur = { ...SCHEDULE[yName][5], d: yName };
+        const yIdx = (now.getDay() + 6) % 7;
+        cur = { ...SCHEDULE[weekdays[yIdx]][5], d: weekdays[yIdx] };
       }
       todayS.forEach(i => { if (nMins < tToM(i.time) && !nGlob) nGlob = { ...i, w: tToM(i.time) - nMins }; });
       if (!nGlob) {
@@ -271,7 +291,6 @@
       `;
       document.getElementById("lastUpdate").innerText = `最後同步：${new Date().toLocaleTimeString('zh-TW')}`;
 
-      // summary1 & summary2 表格渲染保持原有置中與對齊邏輯
       let h1 = `<table><thead><tr><th class="col-event">軍備項目</th><th class="col-time">下次倒數</th><th class="col-tactical">
         <div class="tactical-header-flex">
           <select class="star-select" onchange="uS(this.value)">${SLOTS.map(s=>`<option value="${s}" ${starTriggerSlot===s?'selected':''}>★ ${s}</option>`).join('')}</select>
@@ -294,14 +313,13 @@
       });
       document.getElementById("summary2").innerHTML = h2 + "</tbody></table>";
 
-      // 修正：每週軍備總表 - 電腦版全名，手機版二字
       let ft = `<table class="week-table"><thead><tr><th style="width:75px">時段</th>${["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d=>`<th>${d.substring(2,3)}</th>`).join('')}</tr></thead><tbody>`;
       SLOTS.forEach(t => {
         ft += `<tr><td><strong>${t}</strong></td>`;
         ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].forEach(d => {
           const isC = d === data.cur.d && t === data.cur.time;
           const evFull = SCHEDULE[d]?.find(e=>e.time===t)?.event || '';
-          const evName = isMobile ? evFull.substring(0,2) : evFull; // 關鍵判定邏輯
+          const evName = isMobile ? evFull.substring(0,2) : evFull; 
           ft += `<td class="${isC?'current-cell':''}">${evName}</td>`;
         });
         ft += "</tr>";
@@ -313,7 +331,7 @@
     function uA(v) { advanceToSlot = v; localStorage.setItem('tactical_advance_to', v); renderUI(); }
     function toggleTheme() { document.body.classList.toggle('light'); localStorage.setItem('theme', document.body.classList.contains('light')?'light':'dark'); }
     if (localStorage.getItem('theme')==='light') document.body.classList.add('light');
-    window.addEventListener('resize', renderUI); // 監聽視窗大小變更
+    window.addEventListener('resize', renderUI);
     renderUI(); setInterval(renderUI, 30000);
   </script>
 </body>
