@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>軍備時間查詢工具 - 管理員加強版</title>
+  <title>軍備時間查詢工具 - 時段交換改良版</title>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -14,7 +14,7 @@
     }
     body.light {
       --bg-color: #f3f4f6; --card-bg: #ffffff; --text-main: #1f2937; --text-muted: #6b7280;
-      --border-color: #e5e7eb; --highlight-bg: #fef3c7; --highlight-text: #92400e; --error-text: #ef4444;
+      --border-color: #e5e7eb; --highlight-bg: #eff6ff; --highlight-text: #2563eb; --error-text: #ef4444;
     }
     * { box-sizing: border-box; transition: background-color 0.3s, color 0.3s; }
     body { font-family: 'Noto Sans TC', sans-serif; margin: 0; padding: 0; background-color: var(--bg-color); color: var(--text-main); line-height: 1.6; }
@@ -27,48 +27,84 @@
     .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
     .section-title { font-size: 1.1rem; font-weight: 700; border-left: 4px solid var(--primary-color); padding-left: 10px; margin: 0; }
     .section-hint { font-size: 0.8rem; color: var(--text-muted); }
-    .star-select, .advance-select { background: var(--bg-color); border: 1px solid var(--border-color); padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: 700; outline: none; }
+    
+    /* 核心表格佈局：強制水平格線對齊 */
+    table { width: 100%; border-collapse: collapse; background: var(--card-bg); table-layout: fixed; }
+    th, td { padding: 0 12px; text-align: center; border-bottom: 1px solid var(--border-color); overflow: hidden; }
+    th { background-color: var(--bg-color); font-weight: 500; color: var(--text-muted); font-size: 0.85rem; height: 60px; }
+    td { height: 52px; }
+    
+    /* 修復末行邊框殘影 Bug */
+    tr:last-child td { border-bottom: none; }
+
+    /* 左側表格欄位比例 */
+    #summary1 .col-event { width: 40%; text-align: left; padding-left: 15px !important; font-weight: 700; border-right: 1px solid var(--border-color); }
+    #summary1 .col-time { width: 22%; font-family: monospace; font-size: 1rem; }
+    #summary1 .col-tactical { width: 38%; }
+
+    /* 右側表格：強制雙欄架構，達成絕對置中視覺感 */
+    #summary2 .col-event { width: 60%; text-align: center !important; padding-left: 0 !important; font-weight: 700; border-right: 1px solid var(--border-color); }
+    #summary2 .col-time { width: 40%; text-align: center !important; font-family: monospace; font-size: 1rem; }
+    #summary2 th, #summary2 td { text-align: center !important; padding-left: 0 !important; }
+
+    /* 呼吸燈動畫效果 */
+    @keyframes breathingGlow {
+      0% { box-shadow: inset 0 0 5px var(--star-color), 0 0 5px var(--star-color); background-color: var(--highlight-bg); }
+      50% { box-shadow: inset 0 0 15px var(--star-color), 0 0 20px var(--star-color); background-color: #612c0a; }
+      100% { box-shadow: inset 0 0 5px var(--star-color), 0 0 5px var(--star-color); background-color: var(--highlight-bg); }
+    }
+
+    .current-cell { 
+      background-color: var(--highlight-bg) !important; color: var(--highlight-text); font-weight: 700; 
+      animation: breathingGlow 2.5s infinite ease-in-out; position: relative; z-index: 1;
+    }
+
+    .tactical-result { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; line-height: 1.6; }
+    .tactical-header-flex { display: flex; align-items: center; justify-content: center; gap: 5px; height: 100%; }
+    
+    .star-select, .advance-select { background: var(--bg-color); border: 1px solid var(--border-color); padding: 2px 4px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: 700; outline: none; height: 26px; }
     .star-select { color: var(--star-color); }
     .advance-select { color: var(--accent-color); }
+
+    /* 即時狀態樣式 */
     .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .status-item { padding: 12px; border-radius: 8px; background: var(--bg-color); }
     .status-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
     .status-value { font-size: 1.05rem; font-weight: 500; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; margin-left: 8px; background: var(--primary-color); color: white; }
+    
+    /* 1. 星期幾標籤微調：不再過度放大 */
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 1rem; font-weight: 700; margin-left: 12px; background: var(--primary-color); color: white; vertical-align: middle; }
+    
     .summary-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; }
     .scroll-container { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border-color); }
-    table { width: 100%; border-collapse: collapse; background: var(--card-bg); }
-    th, td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--border-color); }
-    th { background-color: var(--bg-color); font-weight: 500; color: var(--text-muted); font-size: 0.85rem; }
-    .current-cell { background-color: var(--highlight-bg) !important; color: var(--highlight-text); font-weight: 700; }
-    .tactical-cell { min-width: 250px; }
-    .tactical-result { display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; line-height: 1.6; }
     .star-mark { color: var(--star-color); font-weight: bold; font-size: 1.1rem; }
     .advance-time { color: var(--accent-color); font-weight: 700; font-family: monospace; font-size: 1.05rem; }
     .invalid-rule { color: var(--error-text); font-size: 0.75rem; font-weight: 500; }
-    .natural-time { font-family: monospace; font-size: 0.95rem; color: var(--text-main); }
     .update-time { text-align: right; font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
     
-    #adminStats { 
-      position: fixed; 
-      bottom: 20px; 
-      right: 20px; 
-      background: var(--primary-color); 
-      color: white; 
-      padding: 12px 20px; 
-      border-radius: 16px; 
-      font-size: 0.8rem; 
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
-      display: none; 
-      z-index: 9999; 
-      border: 1px solid rgba(255,255,255,0.2);
-    }
+    #adminStats { position: fixed; bottom: 20px; right: 20px; background: var(--primary-color); color: white; padding: 12px 20px; border-radius: 16px; font-size: 0.8rem; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; z-index: 9999; border: 1px solid rgba(255,255,255,0.2); }
     .admin-row { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 4px; }
     .admin-row:last-child { margin-bottom: 0; }
     .admin-label { opacity: 0.8; }
     .admin-value { font-weight: 800; font-family: monospace; }
 
-    @media (max-width: 600px) { th, td { padding: 8px 6px; font-size: 0.8rem; } }
+    /* 週表表頭微調 */
+    .week-table th { font-size: 1.05rem; font-weight: 700; padding: 12px 2px; color: var(--text-main); }
+
+    /* 行動裝置排版修正 */
+    @media (max-width: 600px) {
+      .container { padding: 10px; }
+      th, td { padding: 0 6px; font-size: 0.8rem; }
+      #summary1 .col-event { width: 42%; padding-left: 10px !important; }
+      #summary1 .col-time { width: 25%; }
+      #summary1 .col-tactical { width: 33%; }
+      
+      #summary2 .col-event { width: 60%; }
+      #summary2 .col-time { width: 40%; }
+
+      .badge { font-size: 0.95rem; padding: 3px 8px; }
+      .week-table th { font-size: 0.9rem; }
+    }
   </style>
 </head>
 <body>
@@ -105,14 +141,8 @@
   </div>
 
   <div id="adminStats">
-    <div class="admin-row">
-      <span class="admin-label">📅 今日新增：</span>
-      <span class="admin-value" id="todayVisitCount">校驗中...</span>
-    </div>
-    <div class="admin-row">
-      <span class="admin-label">🌍 累計訪客：</span>
-      <span class="admin-value" id="visitCount">校驗中...</span>
-    </div>
+    <div class="admin-row"><span>📅 今日新增：</span><span class="admin-value" id="todayVisitCount">校驗中...</span></div>
+    <div class="admin-row"><span>🌍 累計訪客：</span><span class="admin-value" id="visitCount">校驗中...</span></div>
   </div>
 
   <script type="module">
@@ -139,14 +169,11 @@
       const app = initializeApp(firebaseConfig);
       const auth = getAuth(app);
       const db = getFirestore(app);
-      const appId = typeof __app_id !== 'undefined' ? __app_id : 'arms-race-prod'; 
+      const appId = 'arms-race-prod'; 
 
       const getTaiwanDateStr = () => {
         const d = new Date();
-        const offset = d.getTimezoneOffset() * 60000;
-        const localTime = d.getTime();
-        const taipeiTime = localTime + offset + (3600000 * 8);
-        return new Date(taipeiTime).toISOString().split('T')[0];
+        return new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + (3600000 * 8)).toISOString().split('T')[0];
       };
 
       const initAuth = async () => {
@@ -154,20 +181,11 @@
           if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
             await signInWithCustomToken(auth, __initial_auth_token);
           } else {
-            await signInAnonymously(auth).catch(err => {
-              if (err.code === 'auth/operation-not-allowed') {
-                throw new Error("請前往 Firebase Console 開啟『匿名身份驗證』功能。");
-              }
-              throw err;
-            });
+            await signInAnonymously(auth);
           }
         } catch(e) { 
-          console.error("Firebase Auth Error:", e); 
-          if (isAdmin) {
-            const msg = e.message.includes("匿名") ? "未啟動匿名登入" : "驗證失敗";
-            document.getElementById('visitCount').innerText = msg;
-            document.getElementById('todayVisitCount').innerText = msg;
-          }
+          console.error(e); 
+          if (isAdmin) document.getElementById('visitCount').innerText = "驗證失敗";
         }
       };
       initAuth();
@@ -180,33 +198,16 @@
         
         if (!sessionStorage.getItem('visited')) {
           const updateObj = { visits: increment(1) };
-          Promise.all([
-            setDoc(statsDoc, updateObj, { merge: true }),
-            setDoc(dailyDoc, updateObj, { merge: true })
-          ]).then(() => sessionStorage.setItem('visited', 'true')).catch(() => {});
+          Promise.all([setDoc(statsDoc, updateObj, { merge: true }), setDoc(dailyDoc, updateObj, { merge: true })])
+                 .then(() => sessionStorage.setItem('visited', 'true'));
         }
 
         if (isAdmin) {
-          // 設置一個安全超時，防止卡在「校驗中」
-          const timeout = setTimeout(() => {
-            if (document.getElementById('visitCount').innerText === "校驗中...") {
-              document.getElementById('visitCount').innerText = "連線超時";
-              document.getElementById('todayVisitCount').innerText = "連線超時";
-            }
-          }, 5000);
-
           onSnapshot(statsDoc, (snapshot) => {
-            clearTimeout(timeout);
-            document.getElementById('visitCount').innerText = snapshot.exists() ? snapshot.data().visits || 0 : "0";
-          }, (err) => {
-            clearTimeout(timeout);
-            document.getElementById('visitCount').innerText = "權限被擋";
+            if (snapshot.exists()) document.getElementById('visitCount').innerText = snapshot.data().visits || 0;
           });
-
           onSnapshot(dailyDoc, (snapshot) => {
-            document.getElementById('todayVisitCount').innerText = snapshot.exists() ? snapshot.data().visits || 0 : "0";
-          }, (err) => {
-            document.getElementById('todayVisitCount').innerText = "權限被擋";
+            if (snapshot.exists()) document.getElementById('todayVisitCount').innerText = snapshot.data().visits || 0;
           });
         }
       });
@@ -225,103 +226,106 @@
     };
     const SLOTS = ["02:00", "06:00", "10:00", "14:00", "18:00", "22:00"];
     const BASELINE_MINS = 600;
-
     let starTriggerSlot = localStorage.getItem('tactical_star_trigger') || "02:00";
     let advanceToSlot = localStorage.getItem('tactical_advance_to') || "22:00";
 
-    function timeToMinutes(time) { if (!time || time === 'none') return -1; const [h, m] = time.split(":").map(Number); return h * 60 + m; }
-    
-    function isSameCycleEarlier(targetTime, naturalTime) {
-      const getOffset = (m) => (m - BASELINE_MINS + 1440) % 1440;
-      return getOffset(timeToMinutes(targetTime)) < getOffset(timeToMinutes(naturalTime));
-    }
+    const tToM = (t) => { if (!t || t === 'none') return -1; const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+    const isEarlier = (target, natural) => {
+      const o = (m) => (m - BASELINE_MINS + 1440) % 1440;
+      return o(tToM(target)) < o(tToM(natural));
+    };
 
     function calculateFullData() {
       const now = new Date();
       const weekdays = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
-      const currentDay = weekdays[now.getDay()];
-      const nowMins = now.getHours() * 60 + now.getMinutes();
-      let current = null, nextGlobal = null;
-      const eventMap = {};
-      const todaySchedule = SCHEDULE[currentDay];
-      for (let item of todaySchedule) { if (nowMins >= timeToMinutes(item.time)) current = { ...item, day: currentDay }; }
-      if (!current) {
-        const yesterdayIdx = (now.getDay() + 6) % 7;
-        current = { ...SCHEDULE[weekdays[yesterdayIdx]][5], day: weekdays[yesterdayIdx] };
+      const dName = weekdays[now.getDay()];
+      const nMins = now.getHours() * 60 + now.getMinutes();
+      let cur = null, nGlob = null;
+      const eMap = {};
+      const todayS = SCHEDULE[dName];
+      todayS.forEach(i => { if (nMins >= tToM(i.time)) cur = { ...i, d: dName }; });
+      if (!cur) {
+        const yName = weekdays[(now.getDay() + 6) % 7];
+        cur = { ...SCHEDULE[yName][5], d: yName };
       }
-      for (let item of todaySchedule) { if (nowMins < timeToMinutes(item.time)) { if (!nextGlobal) nextGlobal = { ...item, wait: timeToMinutes(item.time) - nowMins }; } }
-      if (!nextGlobal) {
-        const nextD = SCHEDULE[weekdays[(now.getDay()+1)%7]][0];
-        nextGlobal = { ...nextD, wait: (1440 - nowMins) + timeToMinutes(nextD.time) };
+      todayS.forEach(i => { if (nMins < tToM(i.time) && !nGlob) nGlob = { ...i, w: tToM(i.time) - nMins }; });
+      if (!nGlob) {
+        const nD = SCHEDULE[weekdays[(now.getDay()+1)%7]][0];
+        nGlob = { ...nD, w: (1440 - nMins) + tToM(nD.time) };
       }
       ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(ev => {
-        let results = [], naturalTime = "";
-        for (let i = 0; i < 14 && results.length < 2; i++) {
+        let res = [];
+        for (let i = 0; i < 14 && res.length < 2; i++) {
           const dIdx = (now.getDay() + i) % 7;
-          for (let item of SCHEDULE[weekdays[dIdx]]) {
-            const total = i * 1440 + timeToMinutes(item.time);
-            if (total > nowMins && item.event === ev) {
-              if (results.length === 0) naturalTime = item.time;
-              results.push(total - nowMins);
-            }
-          }
+          SCHEDULE[weekdays[dIdx]].forEach(item => {
+            const total = i * 1440 + tToM(item.time);
+            if (total > nMins && item.event === ev) res.push({ w: total - nMins, t: item.time });
+          });
         }
-        const hasStar = (naturalTime === starTriggerSlot);
-        let advancedWait = null, isInvalidExchange = false;
-        if (hasStar && advanceToSlot !== 'none') {
-          if (isSameCycleEarlier(advanceToSlot, naturalTime)) {
-            const timeDiff = (timeToMinutes(naturalTime) - timeToMinutes(advanceToSlot) + 1440) % 1440;
-            const calc = results[0] - timeDiff;
-            if (calc > 0) advancedWait = calc; else isInvalidExchange = true;
-          } else isInvalidExchange = true;
+        const hasS = res[0]?.t === starTriggerSlot;
+        let advW = null, inv = false;
+        if (hasS && advanceToSlot !== 'none') {
+          if (isEarlier(advanceToSlot, res[0].t)) {
+            const diff = (tToM(res[0].t) - tToM(advanceToSlot) + 1440) % 1440;
+            advW = res[0].w - diff;
+            if (advW <= 0) inv = true;
+          } else inv = true;
         }
-        eventMap[ev] = { naturalTime, wait1: results[0], wait2: results[1], hasStar, advancedWait, isInvalidExchange };
+        eMap[ev] = { w1: res[0]?.w, w2: res[1]?.w, hasS, advW, inv };
       });
-      return { currentDay, currentTimeStr: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`, current, nextGlobal, eventMap };
+      return { dName, nMins, cur, nGlob, eMap };
     }
-    function formatWait(mins) { if (mins === null || isNaN(mins)) return "--:--"; return `${Math.floor(mins / 60).toString().padStart(2, '0')}:${(mins % 60).toString().padStart(2, '0')}`; }
+
+    function fmt(m) { if (m === null || isNaN(m)) return "--:--"; return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`; }
+
     function renderUI() {
-      const { currentDay, currentTimeStr, current, nextGlobal, eventMap } = calculateFullData();
+      const data = calculateFullData();
       document.getElementById("statusContent").innerHTML = `
-        <div class="status-item"><div class="status-label">目前時間 GMT+8</div><div class="status-value">${currentTimeStr} <span class="badge">${currentDay}</span></div></div>
-        <div class="status-item"><div class="status-label">當前軍備項目</div><div class="status-value" style="color:var(--accent-color)">${current?.event || '準備中'}</div></div>
-        <div class="status-item"><div class="status-label">下個階段預告</div><div class="status-value">${nextGlobal?.event} <span style="font-size:0.8rem; color:var(--text-muted)">(於 ${formatWait(nextGlobal?.wait)} 後到來)</span></div></div>
+        <div class="status-item"><div class="status-label">目前時間 GMT+8</div><div class="status-value">${new Date().getHours().toString().padStart(2,'0')}:${new Date().getMinutes().toString().padStart(2,'0')} <span class="badge">${data.dName}</span></div></div>
+        <div class="status-item"><div class="status-label">當前軍備項目</div><div class="status-value" style="color:var(--accent-color)">${data.cur.event}</div></div>
+        <div class="status-item"><div class="status-label">下個階段預告</div><div class="status-value">${data.nGlob.event} <span style="font-size:0.8rem; color:var(--text-muted)">(於 ${fmt(data.nGlob.w)} 後)</span></div></div>
       `;
       document.getElementById("lastUpdate").innerText = `最後同步：${new Date().toLocaleTimeString('zh-TW')}`;
-      const events = ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"];
-      let h1 = `<table><thead><tr><th>軍備項目</th><th>下次倒數</th><th class="tactical-cell"><div style="display:flex;align-items:center;justify-content:center;gap:5px;">
-        <select class="star-select" onchange="updateStarTrigger(this.value)">${SLOTS.map(s=>`<option value="${s}" ${starTriggerSlot===s?'selected':''}>★ ${s}</option>`).join('')}</select>
-        <span style="color:var(--text-muted)">→</span><select class="advance-select" onchange="updateAdvanceTo(this.value)"><option value="none" ${advanceToSlot==='none'?'selected':''}>不提前</option>${SLOTS.map(s=>`<option value="${s}" ${advanceToSlot===s?'selected':''}>${s}</option>`).join('')}</select>
-      </div></th></tr></thead><tbody>`;
-      events.forEach(name => {
-        const row = eventMap[name];
-        let tact = "";
-        if (row.hasStar) {
-          tact += '<span class="star-mark">★</span>';
-          if (row.advancedWait !== null) tact += `<span class="advance-time">${formatWait(row.advancedWait)}</span>`;
-          else if (row.isInvalidExchange && advanceToSlot !== 'none') tact += `<span class="invalid-rule">不符合交換提前規則</span>`;
-        }
-        h1 += `<tr><td>${name}</td><td class="natural-time">${formatWait(row.wait1)}</td><td><div class="tactical-result">${tact}</div></td></tr>`;
+
+      let h1 = `<table><thead><tr><th class="col-event">軍備項目</th><th class="col-time">下次倒數</th><th class="col-tactical">
+        <div class="tactical-header-flex">
+          <select class="star-select" onchange="uS(this.value)">${SLOTS.map(s=>`<option value="${s}" ${starTriggerSlot===s?'selected':''}>★ ${s}</option>`).join('')}</select>
+          <span style="color:var(--text-muted)">→</span>
+          <select class="advance-select" onchange="uA(this.value)"><option value="none" ${advanceToSlot==='none'?'selected':''}>不提前</option>${SLOTS.map(s=>`<option value="${s}" ${advanceToSlot===s?'selected':''}>${s}</option>`).join('')}</select>
+        </div>
+      </th></tr></thead><tbody>`;
+      ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(name => {
+        const row = data.eMap[name];
+        let tact = row.hasS ? `<span class="star-mark">★</span>` : "";
+        if (row.hasS && row.advW) tact += `<span class="advance-time">${fmt(row.advW)}</span>`;
+        else if (row.hasS && row.inv && advanceToSlot !== 'none') tact += `<span class="invalid-rule">無效</span>`;
+        h1 += `<tr><td class="col-event">${name}</td><td class="col-time">${fmt(row.w1)}</td><td class="col-tactical"><div class="tactical-result">${tact}</div></td></tr>`;
       });
       document.getElementById("summary1").innerHTML = h1 + "</tbody></table>";
-      let h2 = `<table><thead><tr><th>軍備項目</th><th>下下次倒數</th></tr></thead><tbody>`;
-      events.forEach(name => { h2 += `<tr><td>${name}</td><td class="natural-time" style="color:var(--text-muted)">${formatWait(eventMap[name].wait2)}</td></tr>`; });
+
+      let h2 = `<table><thead><tr><th class="col-event">軍備項目</th><th class="col-time">下下次倒數</th></tr></thead><tbody>`;
+      ["無人機強化", "英雄提升", "城市建設", "士兵提升", "科技研發"].forEach(name => {
+        h2 += `<tr><td class="col-event">${name}</td><td class="col-time" style="color:var(--text-muted)">${fmt(data.eMap[name].w2)}</td></tr>`;
+      });
       document.getElementById("summary2").innerHTML = h2 + "</tbody></table>";
-      const wDays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
-      let ft = `<table><thead><tr><th>時段</th>${wDays.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
+
+      let ft = `<table><thead><tr><th style="width:75px">時段</th>${["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].map(d=>`<th>${d.substring(2,3)}</th>`).join('')}</tr></thead><tbody>`;
       SLOTS.forEach(t => {
         ft += `<tr><td><strong>${t}</strong></td>`;
-        wDays.forEach(d => { ft += `<td class="${(d===current?.day && t===current?.time)?'current-cell':''}">${SCHEDULE[d]?.find(e=>e.time===t)?.event||''}</td>`; });
+        ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"].forEach(d => {
+          const isC = d === data.cur.d && t === data.cur.time;
+          ft += `<td class="${isC?'current-cell':''}">${SCHEDULE[d]?.find(e=>e.time===t)?.event.substring(0,2)||''}</td>`;
+        });
         ft += "</tr>";
       });
       document.getElementById("fullTable").innerHTML = ft + "</tbody></table>";
     }
-    function updateStarTrigger(val) { starTriggerSlot = val; localStorage.setItem('tactical_star_trigger', val); renderUI(); }
-    function updateAdvanceTo(val) { advanceToSlot = val; localStorage.setItem('tactical_advance_to', val); renderUI(); }
+
+    function uS(v) { starTriggerSlot = v; localStorage.setItem('tactical_star_trigger', v); renderUI(); }
+    function uA(v) { advanceToSlot = v; localStorage.setItem('tactical_advance_to', v); renderUI(); }
     function toggleTheme() { document.body.classList.toggle('light'); localStorage.setItem('theme', document.body.classList.contains('light')?'light':'dark'); }
     if (localStorage.getItem('theme')==='light') document.body.classList.add('light');
-    renderUI();
-    setInterval(renderUI, 30000);
+    renderUI(); setInterval(renderUI, 30000);
   </script>
 </body>
 </html>
